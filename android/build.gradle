@@ -6,11 +6,20 @@ allprojects {
 }
 
 rootProject.buildDir = "../build"
+
 subprojects {
-    project.buildDir = "${rootProject.buildDir}/${project.name}"
-}
-subprojects {
-    project.evaluationDependsOn(":app")
+        project.buildDir = "${rootProject.buildDir}/${project.name}"
+
+    afterEvaluate { project ->
+        // ONLY apply this hack to the broken Isar library
+        if (project.name == "isar_flutter_libs") {
+            if (project.hasProperty("android")) {
+                project.android {
+                    namespace = "item.hinsight.isar_flutter_libs"
+                }
+            }
+        }
+    }
 }
 
 tasks.register("clean", Delete) {

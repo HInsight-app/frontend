@@ -25,7 +25,7 @@ class HomePage extends ConsumerWidget {
         elevation: 0,
         scrolledUnderElevation: 0,
         title: const Text(
-          'HInsight',
+          'howard',
           style: TextStyle(
             color: primaryBlue,
             fontWeight: FontWeight.w800,
