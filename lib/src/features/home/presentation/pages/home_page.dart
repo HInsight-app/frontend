@@ -1,5 +1,10 @@
+/*
+INI PLACEHOLDER BISA DIGANTI SEMUANYA
+*/
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import '../controllers/home_controller.dart';
 import '../widgets/decision_card.dart';
 import '../widgets/stat_card.dart';
@@ -9,40 +14,38 @@ class HomePage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 1. Fetch the data from the controller
     final decisions = ref.watch(recentDecisionsProvider);
 
-    // 2. Define the color palette (Ideally, this moves to your core/theme folder later)
-    const primaryBlue = Color(0xFF1E40AF); 
-    const lightBlue = Color(0xFFDBEAFE); 
-    const backgroundBlue = Color(0xFFF8FAFC); 
-    const textDark = Color(0xFF0F172A); 
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
-      backgroundColor: backgroundBlue,
+      backgroundColor: colorScheme.surface,
       appBar: AppBar(
-        backgroundColor: backgroundBlue,
+        backgroundColor: colorScheme.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
-        title: const Text(
+        title: Text(
           'HInsight',
-          style: TextStyle(
-            color: primaryBlue,
+          style: textTheme.headlineSmall?.copyWith(
+            color: colorScheme.primary,
             fontWeight: FontWeight.w800,
             letterSpacing: -0.5,
           ),
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.settings_outlined, color: primaryBlue),
-            onPressed: () {}, 
+            icon: Icon(Icons.settings_outlined, color: colorScheme.primary),
+            onPressed: () {
+              context.push('/sandbox');
+            },
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {}, 
-        backgroundColor: primaryBlue,
-        foregroundColor: Colors.white,
+        onPressed: () {},
+        backgroundColor: colorScheme.primary,
+        foregroundColor: colorScheme.onPrimary,
         elevation: 2,
         icon: const Icon(Icons.add),
         label: const Text(
@@ -55,70 +58,66 @@ class HomePage extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Welcome back,',
-              style: TextStyle(
-                fontSize: 16,
-                color: Colors.black54,
+              style: textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
                 fontWeight: FontWeight.w500,
               ),
             ),
             const SizedBox(height: 4),
-            const Text(
+            Text(
               'What are we tracking today?',
-              style: TextStyle(
-                fontSize: 28,
+              style: textTheme.headlineMedium?.copyWith(
                 fontWeight: FontWeight.w800,
-                color: textDark,
+                color: colorScheme.onSurface,
                 height: 1.1,
               ),
             ),
             const SizedBox(height: 32),
-            
-            // Stats Row using extracted Widget
-            const Row(
+
+            // Stats Row
+            Row(
               children: [
                 Expanded(
                   child: StatCard(
                     title: 'In Progress',
                     count: '4',
-                    color: primaryBlue,
-                    bgColor: lightBlue,
+                    color: colorScheme.primary,
+                    bgColor: colorScheme.primaryContainer,
                   ),
                 ),
-                SizedBox(width: 16),
+                const SizedBox(width: 16),
                 Expanded(
                   child: StatCard(
                     title: 'Resolved',
                     count: '12',
-                    color: Colors.white,
-                    bgColor: primaryBlue,
+                    color: colorScheme.onPrimary,
+                    bgColor: colorScheme.primary,
                   ),
                 ),
               ],
             ),
             const SizedBox(height: 36),
-            
-            const Text(
+
+            Text(
               'Recent Activity',
-              style: TextStyle(
-                fontSize: 18,
+              style: textTheme.titleLarge?.copyWith(
                 fontWeight: FontWeight.w700,
-                color: textDark,
+                color: colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 16),
-            
-            // 3. Dynamically map the data from the controller to the extracted widgets
+
             ...decisions.map((decision) => DecisionCard(
-              title: decision.title,
-              date: decision.date,
-              status: decision.status,
-              statusColor: decision.statusColor,
-              icon: decision.icon,
-            )),
-            
-            const SizedBox(height: 80), 
+                  title: decision.title,
+                  date: decision.date,
+                  status: decision.status,
+                  statusColor: decision.statusColor,
+                  icon: decision.icon,
+                )),
+
+            const SizedBox(height: 80),
           ],
         ),
       ),
