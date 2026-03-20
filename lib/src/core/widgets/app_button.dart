@@ -20,26 +20,25 @@ class AppButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    // Define colors based on the requested type
+    // Define colors based on the requested type using your specific dark palette
     Color bgColor;
     Color fgColor;
     BorderSide border = BorderSide.none;
 
     switch (type) {
       case ButtonType.primary:
-        bgColor = colorScheme.primary;
-        fgColor = colorScheme.onPrimary;
+        bgColor = const Color(0xFFBB86FC); // Primary Purple
+        fgColor = const Color(0xFF1E1E1E); // Dark text for contrast
         break;
       case ButtonType.secondary:
-        bgColor = colorScheme.primaryContainer;
-        fgColor = colorScheme.onPrimaryContainer;
+        bgColor = const Color(0xFF2C2C2C); // Surface Dark grey
+        fgColor = const Color(0xFFEEEEEE); // White text
         break;
       case ButtonType.outline:
         bgColor = Colors.transparent;
-        fgColor = colorScheme.primary;
-        border = BorderSide(color: colorScheme.primary, width: 1.5);
+        fgColor = const Color(0xFFEEEEEE); // White text
+        border = const BorderSide(
+            color: Color(0xFF2C2C2C), width: 2.0); // Surface Dark border
         break;
     }
 
