@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../../core/widgets/app_button.dart';
+import '../../../../core/widgets/app_text_field.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -25,6 +26,58 @@ class _RegisterPageState extends State<RegisterPage> {
     _passwordController.dispose();
     _confirmPasswordController.dispose();
     super.dispose();
+  }
+
+  // Pop Up ERROR message
+  void _showErrorPopup(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message,
+          style: const TextStyle(
+              color: Colors.white, fontWeight: FontWeight.bold)),
+      backgroundColor: Colors.redAccent.shade700,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      margin: const EdgeInsets.all(16),
+      duration: const Duration(seconds: 3),
+    ));
+  }
+
+  // Validation Bouncer
+  void _handleRegistration() async {
+    final username = _nameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text.trim();
+    final confirmPassword = _confirmPasswordController.text.trim();
+
+    if (username.length < 4) {
+      _showErrorPopup('Username must be at least 4 characters long.');
+      return;
+    }
+    if (!email.endsWith('@gmail.com')) {
+      _showErrorPopup('Please use a valid @gmail.com address.');
+      return;
+    }
+    // Regex looks for: (?=.*[A-Z]) -> Capital, (?=.*\d) -> Number, .{8,} -> 8+ length
+    final passwordRegex = RegExp(r'^(?=.*[A-Z])(?=.*\d).{8,}$');
+    if (!passwordRegex.hasMatch(password)) {
+      _showErrorPopup(
+          'Password must be 8+ characters, with 1 capital letter and 1 number.');
+      return;
+    }
+    if (password != confirmPassword) {
+      _showErrorPopup('Password do not match.');
+      return;
+    }
+    setState(() {
+      _isLoading = true;
+    });
+    await Future.delayed(const Duration(seconds: 2));
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+      print("Frontend validation testing passed!");
+    }
   }
 
   @override
@@ -54,53 +107,34 @@ class _RegisterPageState extends State<RegisterPage> {
 
               const SizedBox(height: 40),
 
-              // INPUT FIELDS'
-              Text(
-                'Username',
-                style: Theme.of(context).textTheme.bodyMedium,
-                textAlign: TextAlign.left,
-              ),
-              const SizedBox(height: 10),
-              TextField(
+              AppTextField(
+                label: 'Username',
+                hint: 'Enter your username',
                 controller: _nameController,
-                decoration: const InputDecoration(hintText: 'Display name'),
               ),
               const SizedBox(height: 16),
-              Text(
-                'Email',
-                style: Theme.of(context).textTheme.bodyMedium,
-                textAlign: TextAlign.left,
-              ),
-              const SizedBox(height: 10),
-              TextField(
+
+              AppTextField(
+                label: 'Email',
+                hint: 'example@gmail.com',
                 controller: _emailController,
-                decoration: const InputDecoration(hintText: 'Enter your email'),
+                keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 16),
-              Text(
-                'Password',
-                style: Theme.of(context).textTheme.bodyMedium,
-                textAlign: TextAlign.left,
-              ),
-              const SizedBox(height: 10),
-              TextField(
+
+              AppTextField(
+                label: 'Password',
+                hint: 'Enter your password',
                 controller: _passwordController,
                 obscureText: true,
-                decoration:
-                    const InputDecoration(hintText: 'Enter your password'),
               ),
               const SizedBox(height: 16),
-              Text(
-                'Confirm Password',
-                style: Theme.of(context).textTheme.bodyMedium,
-                textAlign: TextAlign.left,
-              ),
-              const SizedBox(height: 10),
-              TextField(
+
+              AppTextField(
+                label: 'Confirm Password',
+                hint: 'Confirm your Password',
                 controller: _confirmPasswordController,
                 obscureText: true,
-                decoration:
-                    const InputDecoration(hintText: 'Confirm your Password'),
               ),
 
               const SizedBox(height: 32),
@@ -109,20 +143,7 @@ class _RegisterPageState extends State<RegisterPage> {
               AppButton(
                 text: 'Sign Up',
                 isLoading: _isLoading,
-                onPressed: () async {
-                  setState(() {
-                    _isLoading = true;
-                  });
-
-                  // Simulate network request
-                  await Future.delayed(const Duration(seconds: 2));
-
-                  if (mounted) {
-                    setState(() {
-                      _isLoading = false;
-                    });
-                  }
-                },
+                onPressed: _handleRegistration,
               ),
 
               const SizedBox(height: 32),
