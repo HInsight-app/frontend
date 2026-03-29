@@ -27,7 +27,7 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    // 1. Scaffold automatically pulls the dark background from AppTheme
+    // Scaffold automatically pulls the dark background from AppTheme
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -36,15 +36,12 @@ class _LoginPageState extends State<LoginPage> {
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 2. Calling specific typography rules from the theme
               // Image placeholder, change to app logo later :>
               SvgPicture.asset(
                 'assets/images/undraw_business-decisions.svg',
                 height: 200,
               ),
               const SizedBox(height: 40),
-
-              // 3. "Naked" TextFields that inherit all styling globally
               TextField(
                 controller: _emailController,
                 decoration: const InputDecoration(
@@ -68,13 +65,12 @@ class _LoginPageState extends State<LoginPage> {
                 children: [
                   Row(
                     children: [
-                      // Sizing down the checkbox slightly so it fits nicely
                       SizedBox(
                         height: 24,
                         width: 24,
                         child: Checkbox(
                           value: _rememberMe,
-                          activeColor: const Color(0xFFBB86FC), // Theme purple
+                          activeColor: const Color(0xFFBB86FC),
                           onChanged: (value) {
                             setState(() {
                               _rememberMe = value ?? false;
@@ -96,7 +92,7 @@ class _LoginPageState extends State<LoginPage> {
               ),
               const SizedBox(height: 24),
 
-              // --- 4. LOGIN BUTTON ---
+              // --- LOGIN BUTTON ---
               AppButton(
                 type: ButtonType.primary,
                 text: 'Login',
@@ -107,8 +103,6 @@ class _LoginPageState extends State<LoginPage> {
               ),
 
               const SizedBox(height: 24),
-
-              // --- 5. OR DIVIDER ---
               Row(
                 children: [
                   const Expanded(
@@ -125,7 +119,7 @@ class _LoginPageState extends State<LoginPage> {
 
               const SizedBox(height: 24),
 
-              // --- 6. GOOGLE LOGIN BUTTON ---
+              // --- GOOGLE LOGIN BUTTON ---
               AppButton(
                   type: ButtonType.outline,
                   icon: FontAwesomeIcons.google,
@@ -133,7 +127,7 @@ class _LoginPageState extends State<LoginPage> {
                   onPressed: () {}),
               const SizedBox(height: 64),
 
-              // --- 7. ROUTE TO REGISTER ---
+              // --- ROUTE TO REGISTER ---
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -143,8 +137,7 @@ class _LoginPageState extends State<LoginPage> {
                   ),
                   TextButton(
                     onPressed: () {
-                      context
-                          .push('/sandbox'); // Change this to '/register' later
+                      context.push('/register');
                     },
                     child: const Text(
                       'Sign Up',
