@@ -3,11 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:hinsight/core.dart';
 import 'src/core/routing/app_router.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Remove '#' from all url
   usePathUrlStrategy();
+
+  await dotenv.load(fileName: ".env");
   // ProviderScope is mandatory for Riverpod
   runApp(const ProviderScope(child: MainApp()));
 }

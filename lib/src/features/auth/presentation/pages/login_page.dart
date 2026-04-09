@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:hinsight/core.dart';
+import 'package:hinsight/src/features/auth/auth.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -17,6 +21,8 @@ class _LoginPageState extends State<LoginPage> {
 
   // State variable for the checkbox
   bool _rememberMe = false;
+
+  bool _isLoginLoading = false;
 
   @override
   void dispose() {
@@ -96,9 +102,62 @@ class _LoginPageState extends State<LoginPage> {
               AppButton(
                 type: ButtonType.primary,
                 text: 'Login',
-                onPressed: () {
-                  print(
-                      "Email: ${_emailController.text}, Remember: $_rememberMe");
+                isLoading: _isLoginLoading, // Hooks up the loading spinner
+                onPressed: () async {
+                  // Start loading spinner
+                  setState(() {
+                    _isLoginLoading = true;
+                  });
+
+                  try {
+                    // Setup the Tools (Network & Vault)
+                    final baseUrl = dotenv.env['BASE_URL'] ?? ' ';
+                    final dio = Dio(BaseOptions(baseUrl: baseUrl));
+                    const secureStorage = FlutterSecureStorage();
+
+                    // Setup the Assembly Line (DataSources -> Repository -> UseCase)
+                    final remoteDataSource = AuthRemoteDataSourceImpl(dio: dio);
+                    final localDataSource =
+                        AuthLocalDataSourceImpl(secureStorage: secureStorage);
+                    final repository = AuthRepositoryImpl(
+                      remoteDataSource: remoteDataSource,
+                      localDataSource: localDataSource,
+                    );
+                    final loginUseCase = LoginUseCase(repository);
+
+                    // Grab user input
+                    final email = _emailController.text.trim();
+                    final password = _passwordController.text.trim();
+
+                    // Execute! (This saves the token automatically if successful)
+                    final response = await loginUseCase.execute(
+                        email, password, _rememberMe);
+
+                    // Handle Success
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('Login Successful!'),
+                          backgroundColor: Colors.green),
+                    );
+
+                    // context.go('/home'); // Navigate to home
+                  } catch (e) {
+                    // 7. Handle Failure
+                    if (!mounted) return;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content: Text(e.toString()),
+                          backgroundColor: Colors.red),
+                    );
+                  } finally {
+                    // Stop loading spinner
+                    if (mounted) {
+                      setState(() {
+                        _isLoginLoading = false;
+                      });
+                    }
+                  }
                 },
               ),
 

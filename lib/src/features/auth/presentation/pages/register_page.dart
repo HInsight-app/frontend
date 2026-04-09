@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/widgets/app_button.dart';
-import '../../../../core/widgets/app_text_field.dart';
+import 'package:hinsight/core.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:go_router/go_router.dart';
+import 'package:hinsight/src/features/auth/auth.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -71,12 +75,46 @@ class _RegisterPageState extends State<RegisterPage> {
     setState(() {
       _isLoading = true;
     });
-    await Future.delayed(const Duration(seconds: 2));
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-      print("Frontend validation testing passed!");
+    try {
+      // Setup the Tools
+      final baseUrl = dotenv.env['BASE_URL'] ?? '';
+      final dio = Dio(BaseOptions(baseUrl: baseUrl));
+      const secureStorage = FlutterSecureStorage();
+
+      // Setup the Assembly Line
+      final remoteDataSource = AuthRemoteDataSourceImpl(dio: dio);
+      final localDataSource =
+          AuthLocalDataSourceImpl(secureStorage: secureStorage);
+      final repository = AuthRepositoryImpl(
+        remoteDataSource: remoteDataSource,
+        localDataSource: localDataSource,
+      );
+
+      final registerUseCase = RegisterUseCase(repository);
+
+      // Execute Registration
+      final response = await registerUseCase.execute(username, email, password);
+
+      // Handle Success
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Account Created! You can now login.'),
+            backgroundColor: Colors.green),
+      );
+
+      // Pop back to the Login screen
+      context.pop();
+    } catch (e) {
+      // Handle Failure
+      _showErrorPopup(e.toString());
+    } finally {
+      // Stop loading spinner
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
