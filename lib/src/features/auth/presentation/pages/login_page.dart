@@ -110,7 +110,13 @@ class _LoginPageState extends State<LoginPage> {
 
                   try {
                     // Setup the Tools (Network & Vault)
-                    final baseUrl = dotenv.env['BASE_URL'] ?? ' ';
+                    final rawBaseUrl = dotenv.env['BASE_URL'];
+                    final baseUrl = rawBaseUrl?.trim();
+                    if (baseUrl == null || baseUrl.isEmpty) {
+                      throw StateError(
+                        'BASE_URL is not configured. Please set a valid BASE_URL in the environment.',
+                      );
+                    }
                     final dio = Dio(BaseOptions(baseUrl: baseUrl));
                     const secureStorage = FlutterSecureStorage();
 
