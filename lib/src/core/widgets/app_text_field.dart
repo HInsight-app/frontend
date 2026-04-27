@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
-class AppTextField extends StatelessWidget {
+class AppTextField extends StatefulWidget {
   final String label;
   final String hint;
   final TextEditingController? controller;
   final IconData? prefixIcon;
   final int maxLines;
   final TextInputType keyboardType;
-  final bool obscureText;
+  final bool isPassword;
 
   const AppTextField({
     super.key,
@@ -17,8 +17,23 @@ class AppTextField extends StatelessWidget {
     this.prefixIcon,
     this.maxLines = 1,
     this.keyboardType = TextInputType.text,
-    this.obscureText = false,
+    this.isPassword = false, // Defaults to false for normal fields
   });
+
+  @override
+  State<AppTextField> createState() => _AppTextFieldState();
+}
+
+class _AppTextFieldState extends State<AppTextField> {
+  // Remembers if the text is currently hidden or showing
+  late bool _isObscure;
+
+  @override
+  void initState() {
+    super.initState();
+    // Start hidden only if this is defined as a password field
+    _isObscure = widget.isPassword;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +43,7 @@ class AppTextField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          label,
+          widget.label,
           style: theme.textTheme.bodyMedium?.copyWith(
             fontWeight: FontWeight.w700,
             color: theme.colorScheme.onSurface,
@@ -36,19 +51,35 @@ class AppTextField extends StatelessWidget {
         ),
         const SizedBox(height: 8),
         TextField(
-          controller: controller,
-          maxLines: maxLines,
-          keyboardType: keyboardType,
-          obscureText: obscureText,
+          controller: widget.controller,
+          maxLines: widget.maxLines,
+          keyboardType: widget.keyboardType,
+          obscureText: _isObscure,
           style: theme.textTheme.bodyLarge,
           decoration: InputDecoration(
-            hintText: hint,
+            hintText: widget.hint,
             hintStyle: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
             ),
-            prefixIcon: prefixIcon != null
-                ? Icon(prefixIcon, color: theme.colorScheme.primary)
+            prefixIcon: widget.prefixIcon != null
+                ? Icon(widget.prefixIcon, color: theme.colorScheme.primary)
                 : null,
+
+            suffixIcon: widget.isPassword
+                ? IconButton(
+                    icon: Icon(
+                      _isObscure ? Icons.visibility_off : Icons.visibility,
+                      color:
+                          theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _isObscure = !_isObscure;
+                      });
+                    },
+                  )
+                : null, // Shows nothing if it's a normal text field
+
             filled: true,
             fillColor: const Color(0xFF2C2C2C),
             contentPadding:

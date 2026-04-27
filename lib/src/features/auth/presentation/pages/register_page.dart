@@ -57,8 +57,10 @@ class _RegisterPageState extends State<RegisterPage> {
       _showErrorPopup('Username must be at least 4 characters long.');
       return;
     }
-    if (!email.endsWith('@gmail.com')) {
-      _showErrorPopup('Please use a valid @gmail.com address.');
+    final emailRegex =
+        RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$');
+    if (!emailRegex.hasMatch(email)) {
+      _showErrorPopup('Please enter a valid email address.');
       return;
     }
     // Regex looks for: (?=.*[A-Z]) -> Capital, (?=.*\d) -> Number, .{8,} -> 8+ length
@@ -164,7 +166,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 label: 'Password',
                 hint: 'Enter your password',
                 controller: _passwordController,
-                obscureText: true,
+                isPassword: true,
               ),
               const SizedBox(height: 16),
 
@@ -172,7 +174,7 @@ class _RegisterPageState extends State<RegisterPage> {
                 label: 'Confirm Password',
                 hint: 'Confirm your Password',
                 controller: _confirmPasswordController,
-                obscureText: true,
+                isPassword: true,
               ),
 
               const SizedBox(height: 32),

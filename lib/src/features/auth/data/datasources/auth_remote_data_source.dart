@@ -1,4 +1,3 @@
-
 import 'package:dio/dio.dart';
 import '../models/auth_response.dart';
 
@@ -22,7 +21,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       data: {
         'email': email,
         'password': password,
-        'remember_me': remember,
+        'remember': remember,
       },
     );
 

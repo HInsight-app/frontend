@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
 import 'package:hinsight/core.dart';
 import 'package:hinsight/src/features/auth/auth.dart';
 
@@ -48,20 +49,18 @@ class _LoginPageState extends State<LoginPage> {
                 height: 200,
               ),
               const SizedBox(height: 40),
-              TextField(
+              AppTextField(
+                label: 'Email',
+                hint: 'Email',
                 controller: _emailController,
-                decoration: const InputDecoration(
-                  hintText: 'Email',
-                ),
               ),
 
               const SizedBox(height: 16),
-              TextField(
+              AppTextField(
+                label: 'Password',
+                hint: 'Password',
                 controller: _passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
-                  hintText: 'Password',
-                ),
+                isPassword: true,
               ),
 
               const SizedBox(height: 8),
