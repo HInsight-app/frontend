@@ -70,7 +70,7 @@ class _RegisterPageState extends State<RegisterPage> {
       return;
     }
     if (password != confirmPassword) {
-      _showErrorPopup('Password do not match.');
+      _showErrorPopup('Passwords do not match.');
       return;
     }
     setState(() {
