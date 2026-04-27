@@ -78,8 +78,22 @@ class _RegisterPageState extends State<RegisterPage> {
     });
     try {
       // Setup the Tools
-      final baseUrl = dotenv.env['BASE_URL'] ?? '';
-      final dio = Dio(BaseOptions(baseUrl: baseUrl));
+      final configuredBaseUrl = dotenv.env['BASE_URL']?.trim();
+      if (configuredBaseUrl == null || configuredBaseUrl.isEmpty) {
+        throw Exception(
+          'Application configuration error: BASE_URL is not set.',
+        );
+      }
+      final parsedBaseUrl = Uri.tryParse(configuredBaseUrl);
+      if (parsedBaseUrl == null ||
+          !parsedBaseUrl.isAbsolute ||
+          parsedBaseUrl.scheme.isEmpty ||
+          parsedBaseUrl.host.isEmpty) {
+        throw Exception(
+          'Application configuration error: BASE_URL must be a valid absolute URL.',
+        );
+      }
+      final dio = Dio(BaseOptions(baseUrl: configuredBaseUrl));
       const secureStorage = FlutterSecureStorage();
 
       // Setup the Assembly Line
