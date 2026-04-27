@@ -108,6 +108,7 @@ class _RegisterPageState extends State<RegisterPage> {
       context.pop();
     } catch (e) {
       // Handle Failure
+      if (!mounted) return;
       _showErrorPopup(e.toString());
     } finally {
       // Stop loading spinner
