@@ -4,7 +4,6 @@ import 'package:hinsight/core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:go_router/go_router.dart';
 import 'package:hinsight/src/features/auth/auth.dart';
 
 class RegisterPage extends StatefulWidget {
