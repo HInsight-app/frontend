@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
 enum ButtonType { primary, secondary, outline }
 
@@ -7,7 +8,7 @@ class AppButton extends StatelessWidget {
   final VoidCallback onPressed;
   final ButtonType type;
   final bool isLoading;
-  final IconData? icon;
+  final FaIconData? icon;
 
   const AppButton({
     super.key,
@@ -71,7 +72,7 @@ class AppButton extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   if (icon != null) ...[
-                    Icon(icon, size: 20),
+                    FaIcon(icon, size: 20),
                     const SizedBox(width: 8),
                   ],
                   Text(
