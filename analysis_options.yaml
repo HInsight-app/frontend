@@ -16,6 +16,12 @@ analyzer:
     - windows/**
     - macos/**
     - linux/**
+  errors:
+    # Isar's generated *.g.dart code calls APIs marked @experimental
+    # (getByIndex, putByIndex, ...) for every unique index. Generated files
+    # can't be edited, and excluding them would also hide real errors in
+    # stale generated code, so only this rule is turned off.
+    experimental_member_use: ignore
 include: package:flutter_lints/flutter.yaml
 
 linter:
