@@ -28,7 +28,7 @@ If you do not have the Flutter SDK installed on your machine, you must configure
    flutter doctor
    ```
 
-> **Use the same Flutter version as the rest of the team.** Each Flutter SDK pins its own versions of packages like `meta` and `test_api`, so a different SDK rewrites `pubspec.lock` on `flutter pub get`. Don't commit a `pubspec.lock` that changed only because of your SDK version.
+> **Use Flutter 3.47.x (stable), the same version as the rest of the team.** The committed `pubspec.lock` was resolved with 3.47, and each Flutter SDK pins its own versions of packages like `meta` and `test_api`. On an older SDK (e.g. 3.41), `flutter pub get` rewrites `pubspec.lock` with older versions. Run `flutter --version` to check, and `flutter upgrade` to update. Don't commit a `pubspec.lock` that changed only because of your SDK version.
 
 ---
 
@@ -46,6 +46,7 @@ git config user.name "Your Name"
 git config user.email "you@example.com"
 
 # 3. Create your local environment file, then set BASE_URL to the backend's URL
+#    (in Windows cmd use: copy .env.example .env)
 cp .env.example .env
 
 # 4. Fetch all dependencies from pubspec.yaml
@@ -74,7 +75,7 @@ flutter run
 ```
 
 ### Running on Web (UI Preview Only)
-Isar does not support web, so features that use the local cache will not work in the browser. Use web only to check layouts and styling.
+Isar does not support web. Once the app opens Isar at startup, the web build will not start at all, so treat web as a temporary way to check layouts and styling.
 
 To run the app directly in your existing Chrome browser without spawning a new, sandboxed debugging window, use the web-server configuration:
 ```bash

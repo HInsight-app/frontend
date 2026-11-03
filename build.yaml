@@ -1,0 +1,18 @@
+# Code generation only needs to run on app code. Without this, build_runner
+# also runs freezed, json_serializable and isar_generator over every test file,
+# which slows down every `dart run build_runner build`.
+targets:
+  $default:
+    builders:
+      freezed|freezed:
+        generate_for:
+          - lib/**
+      json_serializable|json_serializable:
+        generate_for:
+          - lib/**
+      isar_generator|isar_generator:
+        generate_for:
+          - lib/**
+      source_gen|combining_builder:
+        generate_for:
+          - lib/**
