@@ -28,6 +28,8 @@ If you do not have the Flutter SDK installed on your machine, you must configure
    flutter doctor
    ```
 
+> **Use the same Flutter version as the rest of the team.** Each Flutter SDK pins its own versions of packages like `meta` and `test_api`, so a different SDK rewrites `pubspec.lock` on `flutter pub get`. Don't commit a `pubspec.lock` that changed only because of your SDK version.
+
 ---
 
 ## 2. Project Initialization
@@ -36,25 +38,34 @@ Once Flutter is installed and your IDE is ready, clone this repository and initi
 
 ```bash
 # 1. Clone the repository
-git clone [https://github.com/Sebastian/hinsight-frontend.git](https://github.com/Sebastian/hinsight-frontend.git)
-cd hinsight-frontend
+git clone https://github.com/HInsight-app/frontend.git
+cd frontend
 
-# 2. Configure local Git identity (if not already set globally)
-git config user.name "Sebastian"
-git config user.email "sebastianramli77@gmail.com"
+# 2. Configure your own Git identity (if not already set globally)
+git config user.name "Your Name"
+git config user.email "you@example.com"
 
-# 3. Fetch all dependencies from pubspec.yaml
+# 3. Create your local environment file, then set BASE_URL to the backend's URL
+cp .env.example .env
+
+# 4. Fetch all dependencies from pubspec.yaml
 flutter pub get
 
-# 4. Generate the required boilerplate code (Freezed models, Isar schemas, etc.)
+# 5. Generate the required boilerplate code (Freezed models, Isar schemas, etc.)
 # DO NOT SKIP THIS STEP. The app will fail to compile without it.
 dart run build_runner build -d
 ```
 *Note: Whenever you modify a `.dart` file that uses `@freezed`, `@JsonSerializable`, or Isar collections, you must re-run the `build_runner` command to update the generated code.*
 
+*Note: `.env` is git-ignored but listed as an asset in `pubspec.yaml`, so the app will not build until the file exists.*
+
+*Note: `isar_generator` 3.1 pins `analyzer` to 5.x, which keeps `freezed` and `json_serializable` on their current major versions. Don't upgrade those two until Isar is upgraded or replaced.*
+
 ---
 
 ##  3. Running the App
+
+HInsight is a **mobile-first** app (Android/iOS), which is also what the thesis evaluates. Web is only a quick UI preview.
 
 ### Running on Mobile (Emulator or Physical Device)
 Ensure your Android Emulator or iOS Simulator is running, or a physical device is connected via USB/Wi-Fi, then run:
@@ -62,7 +73,9 @@ Ensure your Android Emulator or iOS Simulator is running, or a physical device i
 flutter run
 ```
 
-### Running on Web (Local Browser Tab)
+### Running on Web (UI Preview Only)
+Isar does not support web, so features that use the local cache will not work in the browser. Use web only to check layouts and styling.
+
 To run the app directly in your existing Chrome browser without spawning a new, sandboxed debugging window, use the web-server configuration:
 ```bash
 flutter run -d web-server --web-port 8080
