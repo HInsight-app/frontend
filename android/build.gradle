@@ -8,14 +8,20 @@ allprojects {
 rootProject.buildDir = "../build"
 
 subprojects {
-        project.buildDir = "${rootProject.buildDir}/${project.name}"
+    project.buildDir = "${rootProject.buildDir}/${project.name}"
 
     afterEvaluate { project ->
-        // ONLY apply this hack to the broken Isar library
+        // ONLY apply this hack to the broken Isar library (isar_flutter_libs 3.1.0+1):
+        // - It sets no namespace, which AGP 8 requires. It must equal the package="..."
+        //   in Isar's own AndroidManifest.xml, or processReleaseManifest fails.
+        // - It compiles against SDK 30, but the AndroidX resources merged into it use
+        //   android:attr/lStar (SDK 31+). 36 matches flutter.compileSdkVersion
+        //   (Flutter 3.41 and 3.47), which the app module uses.
         if (project.name == "isar_flutter_libs") {
             if (project.hasProperty("android")) {
                 project.android {
-                    namespace = "item.hinsight.isar_flutter_libs"
+                    namespace = "dev.isar.isar_flutter_libs"
+                    compileSdkVersion = 36
                 }
             }
         }
