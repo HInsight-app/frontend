@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:hinsight/core.dart';
 import 'src/core/routing/app_router.dart';
+import 'src/features/decisions/data/local/open_local_data_source.dart';
+import 'src/features/decisions/decisions_providers.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 Future<void> main() async {
@@ -14,8 +16,16 @@ Future<void> main() async {
   addFontLicenses();
 
   await dotenv.load(fileName: ".env");
+  // Isar on phones; in memory on the web preview, where Isar can't run
+  final decisionStore = await openDecisionLocalDataSource();
+
   // ProviderScope is mandatory for Riverpod
-  runApp(const ProviderScope(child: MainApp()));
+  runApp(ProviderScope(
+    overrides: [
+      decisionLocalDataSourceProvider.overrideWithValue(decisionStore),
+    ],
+    child: const MainApp(),
+  ));
 }
 
 /// The bundled Plus Jakarta Sans font is under the SIL Open Font License, which

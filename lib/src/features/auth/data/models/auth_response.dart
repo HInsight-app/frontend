@@ -26,9 +26,6 @@ class AuthUserModel with _$AuthUserModel {
   const factory AuthUserModel({
     required String id,
     required String email,
-    // Freezed copies this annotation to the generated field, where it applies;
-    // the analyzer only sees it on the parameter, hence the ignore.
-    // ignore: invalid_annotation_target
     @JsonKey(name: 'display_name') required String displayName,
   }) = _AuthUserModel;
 

@@ -22,6 +22,10 @@ analyzer:
     # can't be edited, and excluding them would also hide real errors in
     # stale generated code, so only this rule is turned off.
     experimental_member_use: ignore
+    # Freezed models put @JsonKey on constructor parameters; Freezed copies it
+    # to the generated fields, where it applies. Freezed's docs recommend
+    # turning this off (an inline ignore gets copied into generated code).
+    invalid_annotation_target: ignore
 include: package:flutter_lints/flutter.yaml
 
 linter:
