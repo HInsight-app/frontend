@@ -64,24 +64,35 @@ const IsarAiInsightSchema = CollectionSchema(
       type: IsarType.string,
       enumMap: _IsarAiInsightprimaryBiasEnumValueMap,
     ),
-    r'riskLevel': PropertySchema(
+    r'requestedAt': PropertySchema(
       id: 9,
+      name: r'requestedAt',
+      type: IsarType.dateTime,
+    ),
+    r'riskLevel': PropertySchema(
+      id: 10,
       name: r'riskLevel',
       type: IsarType.string,
       enumMap: _IsarAiInsightriskLevelEnumValueMap,
     ),
     r'serverId': PropertySchema(
-      id: 10,
+      id: 11,
       name: r'serverId',
       type: IsarType.string,
     ),
+    r'status': PropertySchema(
+      id: 12,
+      name: r'status',
+      type: IsarType.string,
+      enumMap: _IsarAiInsightstatusEnumValueMap,
+    ),
     r'suggestedAlternative': PropertySchema(
-      id: 11,
+      id: 13,
       name: r'suggestedAlternative',
       type: IsarType.string,
     ),
     r'triggerContext': PropertySchema(
-      id: 12,
+      id: 14,
       name: r'triggerContext',
       type: IsarType.string,
       enumMap: _IsarAiInsighttriggerContextEnumValueMap,
@@ -96,7 +107,7 @@ const IsarAiInsightSchema = CollectionSchema(
     r'serverId': IndexSchema(
       id: -7950187970872907662,
       name: r'serverId',
-      unique: true,
+      unique: false,
       replace: false,
       properties: [
         IndexPropertySchema(
@@ -119,6 +130,19 @@ const IsarAiInsightSchema = CollectionSchema(
         ),
         IndexPropertySchema(
           name: r'triggerContext',
+          type: IndexType.hash,
+          caseSensitive: true,
+        )
+      ],
+    ),
+    r'status': IndexSchema(
+      id: -107785170620420283,
+      name: r'status',
+      unique: false,
+      replace: false,
+      properties: [
+        IndexPropertySchema(
+          name: r'status',
           type: IndexType.hash,
           caseSensitive: true,
         )
@@ -146,8 +170,18 @@ int _isarAiInsightEstimateSize(
       bytesCount += 3 + value.name.length * 3;
     }
   }
-  bytesCount += 3 + object.insightText.length * 3;
-  bytesCount += 3 + object.modelVersion.length * 3;
+  {
+    final value = object.insightText;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  {
+    final value = object.modelVersion;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
   {
     final value = object.primaryBias;
     if (value != null) {
@@ -160,7 +194,13 @@ int _isarAiInsightEstimateSize(
       bytesCount += 3 + value.name.length * 3;
     }
   }
-  bytesCount += 3 + object.serverId.length * 3;
+  {
+    final value = object.serverId;
+    if (value != null) {
+      bytesCount += 3 + value.length * 3;
+    }
+  }
+  bytesCount += 3 + object.status.name.length * 3;
   {
     final value = object.suggestedAlternative;
     if (value != null) {
@@ -186,10 +226,12 @@ void _isarAiInsightSerialize(
   writer.writeDouble(offsets[6], object.modelConfidence);
   writer.writeString(offsets[7], object.modelVersion);
   writer.writeString(offsets[8], object.primaryBias?.name);
-  writer.writeString(offsets[9], object.riskLevel?.name);
-  writer.writeString(offsets[10], object.serverId);
-  writer.writeString(offsets[11], object.suggestedAlternative);
-  writer.writeString(offsets[12], object.triggerContext.name);
+  writer.writeDateTime(offsets[9], object.requestedAt);
+  writer.writeString(offsets[10], object.riskLevel?.name);
+  writer.writeString(offsets[11], object.serverId);
+  writer.writeString(offsets[12], object.status.name);
+  writer.writeString(offsets[13], object.suggestedAlternative);
+  writer.writeString(offsets[14], object.triggerContext.name);
 }
 
 IsarAiInsight _isarAiInsightDeserialize(
@@ -204,19 +246,23 @@ IsarAiInsight _isarAiInsightDeserialize(
   object.decisionServerId = reader.readString(offsets[2]);
   object.emotionalTone = _IsarAiInsightemotionalToneValueEnumMap[
       reader.readStringOrNull(offsets[3])];
-  object.generatedAt = reader.readDateTime(offsets[4]);
-  object.insightText = reader.readString(offsets[5]);
+  object.generatedAt = reader.readDateTimeOrNull(offsets[4]);
+  object.insightText = reader.readStringOrNull(offsets[5]);
   object.localId = id;
   object.modelConfidence = reader.readDoubleOrNull(offsets[6]);
-  object.modelVersion = reader.readString(offsets[7]);
+  object.modelVersion = reader.readStringOrNull(offsets[7]);
   object.primaryBias = _IsarAiInsightprimaryBiasValueEnumMap[
       reader.readStringOrNull(offsets[8])];
+  object.requestedAt = reader.readDateTime(offsets[9]);
   object.riskLevel =
-      _IsarAiInsightriskLevelValueEnumMap[reader.readStringOrNull(offsets[9])];
-  object.serverId = reader.readString(offsets[10]);
-  object.suggestedAlternative = reader.readStringOrNull(offsets[11]);
+      _IsarAiInsightriskLevelValueEnumMap[reader.readStringOrNull(offsets[10])];
+  object.serverId = reader.readStringOrNull(offsets[11]);
+  object.status =
+      _IsarAiInsightstatusValueEnumMap[reader.readStringOrNull(offsets[12])] ??
+          InsightStatus.processing;
+  object.suggestedAlternative = reader.readStringOrNull(offsets[13]);
   object.triggerContext = _IsarAiInsighttriggerContextValueEnumMap[
-          reader.readStringOrNull(offsets[12])] ??
+          reader.readStringOrNull(offsets[14])] ??
       TriggerContext.preDecision;
   return object;
 }
@@ -238,24 +284,30 @@ P _isarAiInsightDeserializeProp<P>(
       return (_IsarAiInsightemotionalToneValueEnumMap[
           reader.readStringOrNull(offset)]) as P;
     case 4:
-      return (reader.readDateTime(offset)) as P;
+      return (reader.readDateTimeOrNull(offset)) as P;
     case 5:
-      return (reader.readString(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 6:
       return (reader.readDoubleOrNull(offset)) as P;
     case 7:
-      return (reader.readString(offset)) as P;
+      return (reader.readStringOrNull(offset)) as P;
     case 8:
       return (_IsarAiInsightprimaryBiasValueEnumMap[
           reader.readStringOrNull(offset)]) as P;
     case 9:
+      return (reader.readDateTime(offset)) as P;
+    case 10:
       return (_IsarAiInsightriskLevelValueEnumMap[
           reader.readStringOrNull(offset)]) as P;
-    case 10:
-      return (reader.readString(offset)) as P;
     case 11:
       return (reader.readStringOrNull(offset)) as P;
     case 12:
+      return (_IsarAiInsightstatusValueEnumMap[
+              reader.readStringOrNull(offset)] ??
+          InsightStatus.processing) as P;
+    case 13:
+      return (reader.readStringOrNull(offset)) as P;
+    case 14:
       return (_IsarAiInsighttriggerContextValueEnumMap[
               reader.readStringOrNull(offset)] ??
           TriggerContext.preDecision) as P;
@@ -302,6 +354,16 @@ const _IsarAiInsightriskLevelValueEnumMap = {
   r'medium': RiskLevel.medium,
   r'high': RiskLevel.high,
 };
+const _IsarAiInsightstatusEnumValueMap = {
+  r'processing': r'processing',
+  r'complete': r'complete',
+  r'failed': r'failed',
+};
+const _IsarAiInsightstatusValueEnumMap = {
+  r'processing': InsightStatus.processing,
+  r'complete': InsightStatus.complete,
+  r'failed': InsightStatus.failed,
+};
 const _IsarAiInsighttriggerContextEnumValueMap = {
   r'preDecision': r'preDecision',
   r'postEvaluation': r'postEvaluation',
@@ -322,61 +384,6 @@ List<IsarLinkBase<dynamic>> _isarAiInsightGetLinks(IsarAiInsight object) {
 void _isarAiInsightAttach(
     IsarCollection<dynamic> col, Id id, IsarAiInsight object) {
   object.localId = id;
-}
-
-extension IsarAiInsightByIndex on IsarCollection<IsarAiInsight> {
-  Future<IsarAiInsight?> getByServerId(String serverId) {
-    return getByIndex(r'serverId', [serverId]);
-  }
-
-  IsarAiInsight? getByServerIdSync(String serverId) {
-    return getByIndexSync(r'serverId', [serverId]);
-  }
-
-  Future<bool> deleteByServerId(String serverId) {
-    return deleteByIndex(r'serverId', [serverId]);
-  }
-
-  bool deleteByServerIdSync(String serverId) {
-    return deleteByIndexSync(r'serverId', [serverId]);
-  }
-
-  Future<List<IsarAiInsight?>> getAllByServerId(List<String> serverIdValues) {
-    final values = serverIdValues.map((e) => [e]).toList();
-    return getAllByIndex(r'serverId', values);
-  }
-
-  List<IsarAiInsight?> getAllByServerIdSync(List<String> serverIdValues) {
-    final values = serverIdValues.map((e) => [e]).toList();
-    return getAllByIndexSync(r'serverId', values);
-  }
-
-  Future<int> deleteAllByServerId(List<String> serverIdValues) {
-    final values = serverIdValues.map((e) => [e]).toList();
-    return deleteAllByIndex(r'serverId', values);
-  }
-
-  int deleteAllByServerIdSync(List<String> serverIdValues) {
-    final values = serverIdValues.map((e) => [e]).toList();
-    return deleteAllByIndexSync(r'serverId', values);
-  }
-
-  Future<Id> putByServerId(IsarAiInsight object) {
-    return putByIndex(r'serverId', object);
-  }
-
-  Id putByServerIdSync(IsarAiInsight object, {bool saveLinks = true}) {
-    return putByIndexSync(r'serverId', object, saveLinks: saveLinks);
-  }
-
-  Future<List<Id>> putAllByServerId(List<IsarAiInsight> objects) {
-    return putAllByIndex(r'serverId', objects);
-  }
-
-  List<Id> putAllByServerIdSync(List<IsarAiInsight> objects,
-      {bool saveLinks = true}) {
-    return putAllByIndexSync(r'serverId', objects, saveLinks: saveLinks);
-  }
 }
 
 extension IsarAiInsightQueryWhereSort
@@ -458,8 +465,30 @@ extension IsarAiInsightQueryWhere
     });
   }
 
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterWhereClause>
+      serverIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'serverId',
+        value: [null],
+      ));
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterWhereClause>
+      serverIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.between(
+        indexName: r'serverId',
+        lower: [null],
+        includeLower: false,
+        upper: [],
+      ));
+    });
+  }
+
   QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterWhereClause> serverIdEqualTo(
-      String serverId) {
+      String? serverId) {
     return QueryBuilder.apply(this, (query) {
       return query.addWhereClause(IndexWhereClause.equalTo(
         indexName: r'serverId',
@@ -469,7 +498,7 @@ extension IsarAiInsightQueryWhere
   }
 
   QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterWhereClause>
-      serverIdNotEqualTo(String serverId) {
+      serverIdNotEqualTo(String? serverId) {
     return QueryBuilder.apply(this, (query) {
       if (query.whereSort == Sort.asc) {
         return query
@@ -637,6 +666,51 @@ extension IsarAiInsightQueryWhere
               indexName: r'decisionLocalId_triggerContext',
               lower: [decisionLocalId],
               upper: [decisionLocalId, triggerContext],
+              includeUpper: false,
+            ));
+      }
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterWhereClause> statusEqualTo(
+      InsightStatus status) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addWhereClause(IndexWhereClause.equalTo(
+        indexName: r'status',
+        value: [status],
+      ));
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterWhereClause>
+      statusNotEqualTo(InsightStatus status) {
+    return QueryBuilder.apply(this, (query) {
+      if (query.whereSort == Sort.asc) {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'status',
+              lower: [],
+              upper: [status],
+              includeUpper: false,
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'status',
+              lower: [status],
+              includeLower: false,
+              upper: [],
+            ));
+      } else {
+        return query
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'status',
+              lower: [status],
+              includeLower: false,
+              upper: [],
+            ))
+            .addWhereClause(IndexWhereClause.between(
+              indexName: r'status',
+              lower: [],
+              upper: [status],
               includeUpper: false,
             ));
       }
@@ -1067,7 +1141,25 @@ extension IsarAiInsightQueryFilter
   }
 
   QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
-      generatedAtEqualTo(DateTime value) {
+      generatedAtIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'generatedAt',
+      ));
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
+      generatedAtIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'generatedAt',
+      ));
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
+      generatedAtEqualTo(DateTime? value) {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.equalTo(
         property: r'generatedAt',
@@ -1078,7 +1170,7 @@ extension IsarAiInsightQueryFilter
 
   QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
       generatedAtGreaterThan(
-    DateTime value, {
+    DateTime? value, {
     bool include = false,
   }) {
     return QueryBuilder.apply(this, (query) {
@@ -1092,7 +1184,7 @@ extension IsarAiInsightQueryFilter
 
   QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
       generatedAtLessThan(
-    DateTime value, {
+    DateTime? value, {
     bool include = false,
   }) {
     return QueryBuilder.apply(this, (query) {
@@ -1106,8 +1198,8 @@ extension IsarAiInsightQueryFilter
 
   QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
       generatedAtBetween(
-    DateTime lower,
-    DateTime upper, {
+    DateTime? lower,
+    DateTime? upper, {
     bool includeLower = true,
     bool includeUpper = true,
   }) {
@@ -1123,8 +1215,26 @@ extension IsarAiInsightQueryFilter
   }
 
   QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
+      insightTextIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'insightText',
+      ));
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
+      insightTextIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'insightText',
+      ));
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
       insightTextEqualTo(
-    String value, {
+    String? value, {
     bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
@@ -1138,7 +1248,7 @@ extension IsarAiInsightQueryFilter
 
   QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
       insightTextGreaterThan(
-    String value, {
+    String? value, {
     bool include = false,
     bool caseSensitive = true,
   }) {
@@ -1154,7 +1264,7 @@ extension IsarAiInsightQueryFilter
 
   QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
       insightTextLessThan(
-    String value, {
+    String? value, {
     bool include = false,
     bool caseSensitive = true,
   }) {
@@ -1170,8 +1280,8 @@ extension IsarAiInsightQueryFilter
 
   QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
       insightTextBetween(
-    String lower,
-    String upper, {
+    String? lower,
+    String? upper, {
     bool includeLower = true,
     bool includeUpper = true,
     bool caseSensitive = true,
@@ -1399,8 +1509,26 @@ extension IsarAiInsightQueryFilter
   }
 
   QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
+      modelVersionIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'modelVersion',
+      ));
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
+      modelVersionIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'modelVersion',
+      ));
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
       modelVersionEqualTo(
-    String value, {
+    String? value, {
     bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
@@ -1414,7 +1542,7 @@ extension IsarAiInsightQueryFilter
 
   QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
       modelVersionGreaterThan(
-    String value, {
+    String? value, {
     bool include = false,
     bool caseSensitive = true,
   }) {
@@ -1430,7 +1558,7 @@ extension IsarAiInsightQueryFilter
 
   QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
       modelVersionLessThan(
-    String value, {
+    String? value, {
     bool include = false,
     bool caseSensitive = true,
   }) {
@@ -1446,8 +1574,8 @@ extension IsarAiInsightQueryFilter
 
   QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
       modelVersionBetween(
-    String lower,
-    String upper, {
+    String? lower,
+    String? upper, {
     bool includeLower = true,
     bool includeUpper = true,
     bool caseSensitive = true,
@@ -1689,6 +1817,62 @@ extension IsarAiInsightQueryFilter
   }
 
   QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
+      requestedAtEqualTo(DateTime value) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'requestedAt',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
+      requestedAtGreaterThan(
+    DateTime value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'requestedAt',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
+      requestedAtLessThan(
+    DateTime value, {
+    bool include = false,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'requestedAt',
+        value: value,
+      ));
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
+      requestedAtBetween(
+    DateTime lower,
+    DateTime upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'requestedAt',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+      ));
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
       riskLevelIsNull() {
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(const FilterCondition.isNull(
@@ -1843,8 +2027,26 @@ extension IsarAiInsightQueryFilter
   }
 
   QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
+      serverIdIsNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNull(
+        property: r'serverId',
+      ));
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
+      serverIdIsNotNull() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(const FilterCondition.isNotNull(
+        property: r'serverId',
+      ));
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
       serverIdEqualTo(
-    String value, {
+    String? value, {
     bool caseSensitive = true,
   }) {
     return QueryBuilder.apply(this, (query) {
@@ -1858,7 +2060,7 @@ extension IsarAiInsightQueryFilter
 
   QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
       serverIdGreaterThan(
-    String value, {
+    String? value, {
     bool include = false,
     bool caseSensitive = true,
   }) {
@@ -1874,7 +2076,7 @@ extension IsarAiInsightQueryFilter
 
   QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
       serverIdLessThan(
-    String value, {
+    String? value, {
     bool include = false,
     bool caseSensitive = true,
   }) {
@@ -1890,8 +2092,8 @@ extension IsarAiInsightQueryFilter
 
   QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
       serverIdBetween(
-    String lower,
-    String upper, {
+    String? lower,
+    String? upper, {
     bool includeLower = true,
     bool includeUpper = true,
     bool caseSensitive = true,
@@ -1973,6 +2175,142 @@ extension IsarAiInsightQueryFilter
     return QueryBuilder.apply(this, (query) {
       return query.addFilterCondition(FilterCondition.greaterThan(
         property: r'serverId',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
+      statusEqualTo(
+    InsightStatus value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'status',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
+      statusGreaterThan(
+    InsightStatus value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        include: include,
+        property: r'status',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
+      statusLessThan(
+    InsightStatus value, {
+    bool include = false,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.lessThan(
+        include: include,
+        property: r'status',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
+      statusBetween(
+    InsightStatus lower,
+    InsightStatus upper, {
+    bool includeLower = true,
+    bool includeUpper = true,
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.between(
+        property: r'status',
+        lower: lower,
+        includeLower: includeLower,
+        upper: upper,
+        includeUpper: includeUpper,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
+      statusStartsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.startsWith(
+        property: r'status',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
+      statusEndsWith(
+    String value, {
+    bool caseSensitive = true,
+  }) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.endsWith(
+        property: r'status',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
+      statusContains(String value, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.contains(
+        property: r'status',
+        value: value,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
+      statusMatches(String pattern, {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.matches(
+        property: r'status',
+        wildcard: pattern,
+        caseSensitive: caseSensitive,
+      ));
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
+      statusIsEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.equalTo(
+        property: r'status',
+        value: '',
+      ));
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterFilterCondition>
+      statusIsNotEmpty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addFilterCondition(FilterCondition.greaterThan(
+        property: r'status',
         value: '',
       ));
     });
@@ -2400,6 +2738,19 @@ extension IsarAiInsightQuerySortBy
     });
   }
 
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterSortBy> sortByRequestedAt() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'requestedAt', Sort.asc);
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterSortBy>
+      sortByRequestedAtDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'requestedAt', Sort.desc);
+    });
+  }
+
   QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterSortBy> sortByRiskLevel() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'riskLevel', Sort.asc);
@@ -2423,6 +2774,18 @@ extension IsarAiInsightQuerySortBy
       sortByServerIdDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'serverId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterSortBy> sortByStatus() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'status', Sort.asc);
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterSortBy> sortByStatusDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'status', Sort.desc);
     });
   }
 
@@ -2592,6 +2955,19 @@ extension IsarAiInsightQuerySortThenBy
     });
   }
 
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterSortBy> thenByRequestedAt() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'requestedAt', Sort.asc);
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterSortBy>
+      thenByRequestedAtDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'requestedAt', Sort.desc);
+    });
+  }
+
   QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterSortBy> thenByRiskLevel() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'riskLevel', Sort.asc);
@@ -2615,6 +2991,18 @@ extension IsarAiInsightQuerySortThenBy
       thenByServerIdDesc() {
     return QueryBuilder.apply(this, (query) {
       return query.addSortBy(r'serverId', Sort.desc);
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterSortBy> thenByStatus() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'status', Sort.asc);
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QAfterSortBy> thenByStatusDesc() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addSortBy(r'status', Sort.desc);
     });
   }
 
@@ -2714,6 +3102,13 @@ extension IsarAiInsightQueryWhereDistinct
     });
   }
 
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QDistinct>
+      distinctByRequestedAt() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'requestedAt');
+    });
+  }
+
   QueryBuilder<IsarAiInsight, IsarAiInsight, QDistinct> distinctByRiskLevel(
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
@@ -2725,6 +3120,13 @@ extension IsarAiInsightQueryWhereDistinct
       {bool caseSensitive = true}) {
     return QueryBuilder.apply(this, (query) {
       return query.addDistinctBy(r'serverId', caseSensitive: caseSensitive);
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, IsarAiInsight, QDistinct> distinctByStatus(
+      {bool caseSensitive = true}) {
+    return QueryBuilder.apply(this, (query) {
+      return query.addDistinctBy(r'status', caseSensitive: caseSensitive);
     });
   }
 
@@ -2780,14 +3182,14 @@ extension IsarAiInsightQueryProperty
     });
   }
 
-  QueryBuilder<IsarAiInsight, DateTime, QQueryOperations>
+  QueryBuilder<IsarAiInsight, DateTime?, QQueryOperations>
       generatedAtProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'generatedAt');
     });
   }
 
-  QueryBuilder<IsarAiInsight, String, QQueryOperations> insightTextProperty() {
+  QueryBuilder<IsarAiInsight, String?, QQueryOperations> insightTextProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'insightText');
     });
@@ -2800,7 +3202,8 @@ extension IsarAiInsightQueryProperty
     });
   }
 
-  QueryBuilder<IsarAiInsight, String, QQueryOperations> modelVersionProperty() {
+  QueryBuilder<IsarAiInsight, String?, QQueryOperations>
+      modelVersionProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'modelVersion');
     });
@@ -2813,6 +3216,13 @@ extension IsarAiInsightQueryProperty
     });
   }
 
+  QueryBuilder<IsarAiInsight, DateTime, QQueryOperations>
+      requestedAtProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'requestedAt');
+    });
+  }
+
   QueryBuilder<IsarAiInsight, RiskLevel?, QQueryOperations>
       riskLevelProperty() {
     return QueryBuilder.apply(this, (query) {
@@ -2820,9 +3230,16 @@ extension IsarAiInsightQueryProperty
     });
   }
 
-  QueryBuilder<IsarAiInsight, String, QQueryOperations> serverIdProperty() {
+  QueryBuilder<IsarAiInsight, String?, QQueryOperations> serverIdProperty() {
     return QueryBuilder.apply(this, (query) {
       return query.addPropertyName(r'serverId');
+    });
+  }
+
+  QueryBuilder<IsarAiInsight, InsightStatus, QQueryOperations>
+      statusProperty() {
+    return QueryBuilder.apply(this, (query) {
+      return query.addPropertyName(r'status');
     });
   }
 

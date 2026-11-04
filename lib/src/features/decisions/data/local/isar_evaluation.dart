@@ -10,7 +10,7 @@ part 'isar_evaluation.g.dart';
 class IsarEvaluation {
   Id localId = Isar.autoIncrement;
 
-  @Index(unique: true)
+  @Index() // Not unique: see IsarDecision.serverId
   String? serverId;
 
   @Index(unique: true)

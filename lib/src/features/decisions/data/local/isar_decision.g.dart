@@ -101,7 +101,7 @@ const IsarDecisionSchema = CollectionSchema(
     r'serverId': IndexSchema(
       id: -7950187970872907662,
       name: r'serverId',
-      unique: true,
+      unique: false,
       replace: false,
       properties: [
         IndexPropertySchema(
@@ -363,61 +363,6 @@ List<IsarLinkBase<dynamic>> _isarDecisionGetLinks(IsarDecision object) {
 void _isarDecisionAttach(
     IsarCollection<dynamic> col, Id id, IsarDecision object) {
   object.localId = id;
-}
-
-extension IsarDecisionByIndex on IsarCollection<IsarDecision> {
-  Future<IsarDecision?> getByServerId(String? serverId) {
-    return getByIndex(r'serverId', [serverId]);
-  }
-
-  IsarDecision? getByServerIdSync(String? serverId) {
-    return getByIndexSync(r'serverId', [serverId]);
-  }
-
-  Future<bool> deleteByServerId(String? serverId) {
-    return deleteByIndex(r'serverId', [serverId]);
-  }
-
-  bool deleteByServerIdSync(String? serverId) {
-    return deleteByIndexSync(r'serverId', [serverId]);
-  }
-
-  Future<List<IsarDecision?>> getAllByServerId(List<String?> serverIdValues) {
-    final values = serverIdValues.map((e) => [e]).toList();
-    return getAllByIndex(r'serverId', values);
-  }
-
-  List<IsarDecision?> getAllByServerIdSync(List<String?> serverIdValues) {
-    final values = serverIdValues.map((e) => [e]).toList();
-    return getAllByIndexSync(r'serverId', values);
-  }
-
-  Future<int> deleteAllByServerId(List<String?> serverIdValues) {
-    final values = serverIdValues.map((e) => [e]).toList();
-    return deleteAllByIndex(r'serverId', values);
-  }
-
-  int deleteAllByServerIdSync(List<String?> serverIdValues) {
-    final values = serverIdValues.map((e) => [e]).toList();
-    return deleteAllByIndexSync(r'serverId', values);
-  }
-
-  Future<Id> putByServerId(IsarDecision object) {
-    return putByIndex(r'serverId', object);
-  }
-
-  Id putByServerIdSync(IsarDecision object, {bool saveLinks = true}) {
-    return putByIndexSync(r'serverId', object, saveLinks: saveLinks);
-  }
-
-  Future<List<Id>> putAllByServerId(List<IsarDecision> objects) {
-    return putAllByIndex(r'serverId', objects);
-  }
-
-  List<Id> putAllByServerIdSync(List<IsarDecision> objects,
-      {bool saveLinks = true}) {
-    return putAllByIndexSync(r'serverId', objects, saveLinks: saveLinks);
-  }
 }
 
 extension IsarDecisionQueryWhereSort

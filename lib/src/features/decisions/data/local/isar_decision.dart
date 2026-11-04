@@ -11,7 +11,9 @@ part 'isar_decision.g.dart';
 class IsarDecision {
   Id localId = Isar.autoIncrement;
 
-  @Index(unique: true)
+  // Not unique: Isar counts null as a value, so a unique index would allow only
+  // one unsynced decision at a time. The server keeps UUIDs unique.
+  @Index()
   String? serverId; // PostgreSQL UUID, null until synced
 
   @Index()

@@ -10,7 +10,9 @@ part 'isar_tag.g.dart';
 class IsarTag {
   Id localId = Isar.autoIncrement;
 
-  @Index(unique: true)
+  // Not unique: Isar counts null as a value, so a unique index would allow only
+  // one unsynced tag at a time. The server keeps UUIDs unique.
+  @Index()
   String? serverId;
 
   @Index(unique: true, composite: [CompositeIndex('name')])

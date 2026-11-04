@@ -8,6 +8,11 @@ enum DecisionStatus { pending, decided, evaluated }
 /// When an AI insight was requested: pre_decision | post_evaluation.
 enum TriggerContext { preDecision, postEvaluation }
 
+/// Progress of an AI insight request, as described in the paper. Local only:
+/// the server stores only finished insights. While one is processing, the app
+/// must not send another request for the same decision and trigger.
+enum InsightStatus { processing, complete, failed }
+
 /// Must match the ai_insights.primary_bias CHECK constraint in the backend.
 enum BiasType { confirmation, lossAversion, sunkCost, overconfidence, recency }
 
