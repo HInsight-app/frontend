@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_colors.dart';
+
 class AiInsightCard extends StatelessWidget {
   final String insightText;
   final bool isLoading;
@@ -28,17 +30,14 @@ class AiInsightCard extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
-            theme.colorScheme.primaryContainer.withOpacity(0.4),
-            theme.colorScheme.surface,
+            theme.colorScheme.primary.withValues(alpha: 0.12),
+            theme.colorScheme.surfaceContainer, // Card colour
           ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.colorScheme.primary.withOpacity(0.2),
-          width: 1.5,
-        ),
+        border: Border.all(color: theme.colorScheme.outline),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -79,7 +78,7 @@ class AiInsightCard extends StatelessWidget {
                 emotionalTone != null ||
                 riskLevel != null) ...[
               const SizedBox(height: 16),
-              Divider(color: theme.colorScheme.primary.withOpacity(0.1)),
+              const Divider(),
               const SizedBox(height: 12),
               Wrap(
                 spacing: 8.0,
@@ -111,16 +110,17 @@ class AiInsightCard extends StatelessWidget {
                       padding: EdgeInsets.zero,
                     ),
 
-                  // Risk Flag (Orange/Alert)
+                  // Risk Flag (Yellow/Warning)
                   if (riskLevel != null)
                     Chip(
-                      avatar: Icon(Icons.warning_amber_rounded,
-                          size: 16, color: Colors.orange.shade900),
+                      avatar: const Icon(Icons.warning_amber_rounded,
+                          size: 16, color: AppColors.warning),
                       label: Text(riskLevel!,
                           style: const TextStyle(
                               fontSize: 12, fontWeight: FontWeight.bold)),
-                      backgroundColor: Colors.orange.shade100,
-                      labelStyle: TextStyle(color: Colors.orange.shade900),
+                      backgroundColor:
+                          AppColors.warning.withValues(alpha: 0.15),
+                      labelStyle: const TextStyle(color: AppColors.warning),
                       side: BorderSide.none,
                       padding: EdgeInsets.zero,
                     ),

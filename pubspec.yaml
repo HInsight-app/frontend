@@ -80,6 +80,26 @@ flutter:
   assets:
     - .env
     - assets/images/undraw_business-decisions.svg
+    # Licence for the bundled font, shown on the app's licences page (see main.dart).
+    - assets/fonts/PlusJakartaSans/OFL.txt
+
+  # Plus Jakarta Sans from github.com/tokotype/PlusJakartaSans (SIL OFL 1.1).
+  # The family name must match AppTheme.fontFamily.
+  fonts:
+    - family: PlusJakartaSans
+      fonts:
+        - asset: assets/fonts/PlusJakartaSans/PlusJakartaSans-Light.ttf
+          weight: 300
+        - asset: assets/fonts/PlusJakartaSans/PlusJakartaSans-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/PlusJakartaSans/PlusJakartaSans-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/PlusJakartaSans/PlusJakartaSans-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/PlusJakartaSans/PlusJakartaSans-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/PlusJakartaSans/PlusJakartaSans-ExtraBold.ttf
+          weight: 800
 
   # To add assets to your application, add an assets section, like this:
   # assets:

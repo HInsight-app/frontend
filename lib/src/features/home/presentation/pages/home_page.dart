@@ -42,16 +42,11 @@ class HomePage extends ConsumerWidget {
           ),
         ],
       ),
+      // Colours and label style come from AppTheme (CTA lavender, dark text)
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {},
-        backgroundColor: colorScheme.primary,
-        foregroundColor: colorScheme.onPrimary,
-        elevation: 2,
         icon: const Icon(Icons.add),
-        label: const Text(
-          'New Decision',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
+        label: const Text('New Decision'),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
@@ -84,7 +79,7 @@ class HomePage extends ConsumerWidget {
                     title: 'In Progress',
                     count: '4',
                     color: colorScheme.primary,
-                    bgColor: colorScheme.primaryContainer,
+                    bgColor: colorScheme.surfaceContainer, // Card colour
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -92,8 +87,8 @@ class HomePage extends ConsumerWidget {
                   child: StatCard(
                     title: 'Resolved',
                     count: '12',
-                    color: colorScheme.onPrimary,
-                    bgColor: colorScheme.primary,
+                    color: colorScheme.onPrimaryContainer,
+                    bgColor: colorScheme.primaryContainer, // CTA lavender
                   ),
                 ),
               ],

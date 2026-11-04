@@ -1,4 +1,5 @@
 // Theme category
+export 'src/core/theme/app_colors.dart';
 export 'src/core/theme/app_theme.dart';
 
 // Constants category

@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hinsight/core.dart';
 
-Widget _wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
+Widget _wrap(Widget child) =>
+    MaterialApp(theme: AppTheme.darkTheme, home: Scaffold(body: child));
 
 bool _isObscured(WidgetTester tester) =>
     tester.widget<TextField>(find.byType(TextField)).obscureText;

@@ -34,10 +34,10 @@ class _RegisterPageState extends State<RegisterPage> {
   // Pop Up ERROR message
   void _showErrorPopup(String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      // Dark text comes from the snackbar theme; white on this red is hard to read
       content: Text(message,
-          style: const TextStyle(
-              color: Colors.white, fontWeight: FontWeight.bold)),
-      backgroundColor: Colors.redAccent.shade700,
+          style: const TextStyle(fontWeight: FontWeight.bold)),
+      backgroundColor: AppColors.error,
       behavior: SnackBarBehavior.floating,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       margin: const EdgeInsets.all(16),
@@ -115,7 +115,7 @@ class _RegisterPageState extends State<RegisterPage> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
             content: Text('Account Created! You can now login.'),
-            backgroundColor: Colors.green),
+            backgroundColor: AppColors.success),
       );
 
       // Pop back to the Login screen
@@ -154,7 +154,7 @@ class _RegisterPageState extends State<RegisterPage> {
               Text(
                 'Join HInsight to improve your decision-making.',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: Colors.grey,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                 textAlign: TextAlign.center,
               ),
@@ -215,12 +215,8 @@ class _RegisterPageState extends State<RegisterPage> {
                       // Pops the register screen off, returning to Login
                       context.pop();
                     },
-                    child: const Text(
-                      'Login',
-                      style: TextStyle(
-                          color: Color(0xFFBB86FC),
-                          fontWeight: FontWeight.bold),
-                    ),
+                    // Purple and bold come from AppTheme's textButtonTheme
+                    child: const Text('Login'),
                   ),
                 ],
               )

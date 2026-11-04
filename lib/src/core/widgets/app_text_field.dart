@@ -42,13 +42,7 @@ class _AppTextFieldState extends State<AppTextField> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          widget.label,
-          style: theme.textTheme.bodyMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-            color: theme.colorScheme.onSurface,
-          ),
-        ),
+        Text(widget.label, style: theme.textTheme.titleSmall),
         const SizedBox(height: 8),
         TextField(
           controller: widget.controller,
@@ -56,21 +50,17 @@ class _AppTextFieldState extends State<AppTextField> {
           keyboardType: widget.keyboardType,
           obscureText: _isObscure,
           style: theme.textTheme.bodyLarge,
+          // Fill, borders, hint and icon colours come from AppTheme's
+          // inputDecorationTheme, so every field looks the same.
           decoration: InputDecoration(
             hintText: widget.hint,
-            hintStyle: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
-            ),
-            prefixIcon: widget.prefixIcon != null
-                ? Icon(widget.prefixIcon, color: theme.colorScheme.primary)
-                : null,
+            prefixIcon:
+                widget.prefixIcon != null ? Icon(widget.prefixIcon) : null,
 
             suffixIcon: widget.isPassword
                 ? IconButton(
                     icon: Icon(
                       _isObscure ? Icons.visibility_off : Icons.visibility,
-                      color:
-                          theme.colorScheme.onSurfaceVariant.withOpacity(0.5),
                     ),
                     onPressed: () {
                       setState(() {
@@ -79,24 +69,6 @@ class _AppTextFieldState extends State<AppTextField> {
                     },
                   )
                 : null, // Shows nothing if it's a normal text field
-
-            filled: true,
-            fillColor: const Color(0xFF2C2C2C),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide.none,
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide:
-                  BorderSide(color: theme.colorScheme.primary, width: 2),
-            ),
           ),
         ),
       ],

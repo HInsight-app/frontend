@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hinsight/core.dart';
 
 // A simple mock entity representing your HInsight decisions
 class DecisionMock {
@@ -25,21 +26,21 @@ final recentDecisionsProvider = Provider<List<DecisionMock>>((ref) {
       title: 'Evaluate new job offer',
       date: 'Added 2 days ago',
       status: 'Pending',
-      statusColor: Colors.orange.shade700,
+      statusColor: AppColors.warning,
       icon: Icons.work_outline,
     ),
     DecisionMock(
       title: 'Select database architecture',
       date: 'Updated yesterday',
       status: 'Researching',
-      statusColor: Colors.blue.shade700,
+      statusColor: AppColors.info,
       icon: Icons.storage_outlined,
     ),
     DecisionMock(
       title: 'Renew apartment lease',
       date: 'Resolved last week',
       status: 'Resolved',
-      statusColor: Colors.green.shade700,
+      statusColor: AppColors.success,
       icon: Icons.home_outlined,
     ),
   ];

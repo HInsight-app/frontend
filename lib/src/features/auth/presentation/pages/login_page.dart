@@ -75,7 +75,6 @@ class _LoginPageState extends State<LoginPage> {
                         width: 24,
                         child: Checkbox(
                           value: _rememberMe,
-                          activeColor: const Color(0xFFBB86FC),
                           onChanged: (value) {
                             setState(() {
                               _rememberMe = value ?? false;
@@ -86,10 +85,7 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(width: 8),
                       Text(
                         'Remember me',
-                        style: Theme.of(context)
-                            .textTheme
-                            .labelSmall
-                            ?.copyWith(fontSize: 14),
+                        style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
                   ),
@@ -143,7 +139,7 @@ class _LoginPageState extends State<LoginPage> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                           content: Text('Login Successful!'),
-                          backgroundColor: Colors.green),
+                          backgroundColor: AppColors.success),
                     );
 
                     // context.go('/home'); // Navigate to home
@@ -153,7 +149,7 @@ class _LoginPageState extends State<LoginPage> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                           content: Text(e.toString()),
-                          backgroundColor: Colors.red),
+                          backgroundColor: AppColors.error),
                     );
                   } finally {
                     // Stop loading spinner
@@ -169,15 +165,13 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 24),
               Row(
                 children: [
-                  const Expanded(
-                      child: Divider(color: Color(0xFF2C2C2C), thickness: 2)),
+                  const Expanded(child: Divider()),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16.0),
                     child: Text('OR',
-                        style: TextStyle(color: Colors.grey.shade600)),
+                        style: Theme.of(context).textTheme.bodySmall),
                   ),
-                  const Expanded(
-                      child: Divider(color: Color(0xFF2C2C2C), thickness: 2)),
+                  const Expanded(child: Divider()),
                 ],
               ),
 
@@ -203,12 +197,8 @@ class _LoginPageState extends State<LoginPage> {
                     onPressed: () {
                       context.push('/register');
                     },
-                    child: const Text(
-                      'Sign Up',
-                      style: TextStyle(
-                          color: Color(0xFFBB86FC),
-                          fontWeight: FontWeight.bold),
-                    ),
+                    // Purple and bold come from AppTheme's textButtonTheme
+                    child: const Text('Sign Up'),
                   ),
                 ],
               )

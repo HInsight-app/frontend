@@ -1,14 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hinsight/core.dart';
 import 'package:hinsight/src/core/routing/app_router.dart';
 import 'package:hinsight/src/features/auth/presentation/pages/login_page.dart';
 import 'package:hinsight/src/features/auth/presentation/pages/register_page.dart';
 import 'package:hinsight/src/features/home/presentation/pages/home_page.dart';
 import 'package:hinsight/src/features/home/presentation/pages/sandbox_page.dart';
 
-// Uses the real router from goRouterProvider but the default theme, because
-// AppTheme loads Google Fonts over the network, which tests can't do.
+// Uses the real router from goRouterProvider and the real theme.
 void main() {
   late ProviderContainer container;
 
@@ -18,7 +18,10 @@ void main() {
   Future<void> pumpRouter(WidgetTester tester) async {
     await tester.pumpWidget(UncontrolledProviderScope(
       container: container,
-      child: MaterialApp.router(routerConfig: container.read(goRouterProvider)),
+      child: MaterialApp.router(
+        theme: AppTheme.darkTheme,
+        routerConfig: container.read(goRouterProvider),
+      ),
     ));
   }
 
