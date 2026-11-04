@@ -190,5 +190,63 @@ void runDecisionLocalDataSourceContract(
         throwsA(anything),
       );
     });
+
+    test('sync: lists the user\'s unsynced decisions, deleted ones included',
+        () async {
+      await store.putDecision(decision('New'));
+      await store.putDecision(
+          decision('Edited').copyWith(syncStatus: SyncStatus.pendingUpdate));
+      await store.putDecision(decision('Deleted').copyWith(
+          deletedAt: t0, syncStatus: SyncStatus.pendingDelete));
+      await store.putDecision(
+          decision('Synced').copyWith(syncStatus: SyncStatus.synced));
+      await store.putDecision(decision('Theirs', userId: 'u2'));
+
+      final titles =
+          (await store.getUnsyncedDecisions('u1')).map((d) => d.title).toSet();
+      expect(titles, {'New', 'Edited', 'Deleted'});
+    });
+
+    test('sync: lists unsynced evaluations', () async {
+      final a = (await store.putDecision(decision('A'))).localId!;
+      final b = (await store.putDecision(decision('B'))).localId!;
+      await store.putEvaluation(Evaluation(decisionLocalId: a, createdAt: t0));
+      await store.putEvaluation(Evaluation(
+          decisionLocalId: b, createdAt: t0, syncStatus: SyncStatus.synced));
+
+      final waiting = await store.getUnsyncedEvaluations();
+      expect(waiting.map((e) => e.decisionLocalId), [a]);
+    });
+
+    test('sync: counts what waits to be synced, and counts again on changes',
+        () async {
+      final counts = <int>[];
+      final subscription = store.watchUnsyncedCount('u1').listen(counts.add);
+      addTearDown(subscription.cancel);
+      Future<void> settle() => Future<void>.delayed(const Duration(milliseconds: 50));
+      await settle();
+
+      final visible = await store.putDecision(decision('Mine')); // 1
+      await store.putDecision(decision('Deleted')
+          .copyWith(deletedAt: t0, syncStatus: SyncStatus.pendingDelete)); // 2
+      final hidden = await store.putDecision(decision('Hidden').copyWith(
+          deletedAt: t0, syncStatus: SyncStatus.synced)); // not counted
+      await store.putDecision(
+          decision('Synced').copyWith(syncStatus: SyncStatus.synced));
+      await store.putDecision(decision('Theirs', userId: 'u2'));
+      await store.putTag(const Tag(userId: 'u1', name: 'Academic')); // 3
+      await store.putTag(const Tag(
+          userId: 'u1', name: 'Career', syncStatus: SyncStatus.synced));
+      await store.putEvaluation(
+          Evaluation(decisionLocalId: visible.localId!, createdAt: t0)); // 4
+      // The evaluation of a deleted decision goes with it, so isn't counted.
+      await store.putEvaluation(
+          Evaluation(decisionLocalId: hidden.localId!, createdAt: t0));
+      await settle();
+
+      expect(counts.first, 0);
+      expect(counts.last, 4);
+      expect(await store.watchUnsyncedCount('u2').first, 1);
+    });
   });
 }

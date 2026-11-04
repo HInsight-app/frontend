@@ -7,6 +7,7 @@ import 'package:hinsight/core.dart';
 import 'src/core/routing/app_router.dart';
 import 'src/features/decisions/data/local/open_local_data_source.dart';
 import 'src/features/decisions/decisions_providers.dart';
+import 'src/features/decisions/presentation/sync_controller.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 Future<void> main() async {
@@ -45,9 +46,12 @@ class MainApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Watch your GoRouter provider
     final router = ref.watch(goRouterProvider);
+    // Keeps the background sync running for as long as the app is open
+    // (listening, unlike watching, doesn't rebuild the app on every change).
+    ref.listen(syncControllerProvider, (_, __) {});
 
     return MaterialApp.router(
-      title: 'hinsight', // Updated to match your project
+      title: 'HInsight', // Shown in the phone's recent apps list
       debugShowCheckedModeBanner: false,
 
       theme: AppTheme.darkTheme,

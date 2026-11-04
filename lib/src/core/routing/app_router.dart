@@ -17,13 +17,9 @@ import '../../features/decisions/presentation/pages/insights_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/home/presentation/pages/sandbox_page.dart';
 import 'app_shell.dart';
+import 'auth_redirect_enabled.dart';
 
-/// Whether signed-out users are sent to the login page. Off only in web debug
-/// builds: web is a UI preview (Isar doesn't run there) and the backend sends
-/// no CORS headers, so logging in from a browser can't work.
-final authRedirectEnabledProvider = Provider<bool>(
-  (ref) => !(kIsWeb && kDebugMode),
-);
+export 'auth_redirect_enabled.dart';
 
 const _authPages = {'/login', '/register'};
 

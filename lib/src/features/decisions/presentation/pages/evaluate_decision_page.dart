@@ -9,6 +9,7 @@ import '../../decisions_providers.dart';
 import '../../domain/usecases/decision_usecases.dart';
 import '../decision_providers.dart';
 import '../widgets/confidence_slider.dart';
+import '../widgets/missing_decision.dart';
 
 /// Looking back at a committed decision (paper III-F step 5).
 class EvaluateDecisionPage extends ConsumerStatefulWidget {
@@ -53,12 +54,13 @@ class _EvaluateDecisionPageState extends ConsumerState<EvaluateDecisionPage> {
 
   @override
   Widget build(BuildContext context) {
-    final decision = ref.watch(decisionProvider(widget.decisionId)).valueOrNull;
+    final loaded = ref.watch(decisionProvider(widget.decisionId));
+    final decision = loaded.valueOrNull;
     final textTheme = Theme.of(context).textTheme;
     if (decision == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Evaluate')),
-        body: const Center(child: CircularProgressIndicator()),
+        body: MissingDecision(loading: !loaded.hasValue && !loaded.hasError),
       );
     }
     final before = decision.confidenceBefore;

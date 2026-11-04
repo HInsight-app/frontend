@@ -40,4 +40,18 @@ abstract class DecisionLocalDataSource {
   Future<Tag?> getTag(int localId);
   Future<Tag> putTag(Tag tag);
   Future<void> deleteTagPermanently(int localId);
+
+  // --- Sync (paper III-F) ---
+
+  /// The user's decisions the server doesn't have yet (not synced), including
+  /// deleted ones waiting to be deleted on the server.
+  Future<List<Decision>> getUnsyncedDecisions(String userId);
+
+  /// Evaluations of any user that aren't synced. Evaluations have no user id,
+  /// so the caller checks whose decision each belongs to.
+  Future<List<Evaluation>> getUnsyncedEvaluations();
+
+  /// How many of the user's records wait to be synced: decisions, tags, and
+  /// evaluations of decisions that aren't deleted. Re-emits on every change.
+  Stream<int> watchUnsyncedCount(String userId);
 }

@@ -85,12 +85,21 @@ class _DecisionFormPageState extends ConsumerState<DecisionFormPage> {
   }
 
   Future<void> _pickReviewDate() async {
-    final today = DateTime.now();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final lastDate = today.add(const Duration(days: 730));
+    // A review date saved earlier may have passed by now (or, after the
+    // phone's date changed, be beyond the range). The picker refuses an
+    // initial date outside its range, so start from today instead.
+    var initialDate = _reviewDate ?? today.add(const Duration(days: 7));
+    if (initialDate.isBefore(today) || initialDate.isAfter(lastDate)) {
+      initialDate = today;
+    }
     final picked = await showDatePicker(
       context: context,
-      initialDate: _reviewDate ?? today.add(const Duration(days: 7)),
-      firstDate: DateTime(today.year, today.month, today.day),
-      lastDate: today.add(const Duration(days: 730)),
+      initialDate: initialDate,
+      firstDate: today,
+      lastDate: lastDate,
       helpText: 'When should you look back at this decision?',
     );
     if (picked != null) setState(() => _reviewDate = picked);

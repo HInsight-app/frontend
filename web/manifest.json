@@ -1,6 +1,6 @@
 {
-    "name": "frontend",
-    "short_name": "frontend",
+    "name": "HInsight",
+    "short_name": "HInsight",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

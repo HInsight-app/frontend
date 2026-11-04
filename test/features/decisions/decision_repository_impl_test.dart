@@ -6,6 +6,7 @@ import 'package:hinsight/src/features/decisions/data/local/memory_decision_local
 import 'package:hinsight/src/features/decisions/data/remote/decision_remote_data_source.dart';
 import 'package:hinsight/src/features/decisions/data/remote/fake_decision_remote_data_source.dart';
 import 'package:hinsight/src/features/decisions/data/repositories/decision_repository_impl.dart';
+import 'package:hinsight/src/features/decisions/data/repositories/sync_repository_impl.dart';
 import 'package:hinsight/src/features/decisions/domain/entities/ai_insight.dart';
 import 'package:hinsight/src/features/decisions/domain/entities/decision.dart';
 import 'package:hinsight/src/features/decisions/domain/entities/decision_enums.dart';
@@ -18,9 +19,12 @@ class _SlowRemote extends FakeDecisionRemoteDataSource {
   Future<void> Function()? duringCreate;
 
   @override
-  Future<RemoteDecisionIds> createDecision(Decision decision) async {
+  Future<RemoteDecisionIds> createDecision(
+    Decision decision, {
+    required List<String> tagServerIds,
+  }) async {
     await duringCreate?.call();
-    return super.createDecision(decision);
+    return super.createDecision(decision, tagServerIds: tagServerIds);
   }
 }
 
@@ -30,16 +34,20 @@ void main() {
   late DateTime now;
   late DecisionRepositoryImpl repo;
 
+  DecisionRepositoryImpl repositoryFor(String userId) => DecisionRepositoryImpl(
+        local: local,
+        remote: remote,
+        sync: SyncRepositoryImpl(
+            local: local, remote: remote, userId: userId, clock: () => now),
+        userId: userId,
+        clock: () => now,
+      );
+
   setUp(() {
     local = MemoryDecisionLocalDataSource();
     remote = _SlowRemote();
     now = DateTime(2026, 11, 4, 10);
-    repo = DecisionRepositoryImpl(
-      local: local,
-      remote: remote,
-      userId: 'u1',
-      clock: () => now,
-    );
+    repo = repositoryFor('u1');
   });
 
   const twoOptions = DecisionDraft(
@@ -213,7 +221,7 @@ void main() {
 
     test('another user\'s decisions are invisible', () async {
       final mine = await repo.createDecision(twoOptions);
-      final other = DecisionRepositoryImpl(local: local, remote: remote, userId: 'u2');
+      final other = repositoryFor('u2');
 
       expect(await other.watchDecisions().first, isEmpty);
       expect(other.deleteDecision(mine.localId!), brokenRule('no longer exists'));
@@ -319,6 +327,56 @@ void main() {
       expect(stored!.title, 'Edited meanwhile');
       expect(stored.serverId, isNotNull);
       expect(stored.syncStatus, SyncStatus.pendingUpdate);
+    });
+
+    test('a decision deleted while it is being sent is not brought back',
+        () async {
+      final d = await repo.createDecision(twoOptions);
+      remote.duringCreate = () => repo.deleteDecision(d.localId!);
+
+      await expectLater(repo.requestInsight(d.localId!, TriggerContext.preDecision),
+          brokenRule('no longer exists'));
+
+      expect(await repo.watchDecisions().first, isEmpty);
+      expect(await local.getInsights(d.localId!, TriggerContext.preDecision),
+          isEmpty);
+      // The server got it before the delete, so it is deleted there next.
+      remote.duringCreate = null;
+      final serverId = (await local.getDecision(d.localId!))!.serverId!;
+      await repo.sync.syncPendingChanges();
+      expect(remote.serverCopy(serverId)!.deletedAt, isNotNull);
+      expect(await local.getDecision(d.localId!), isNull);
+    });
+
+    test('a server that forgot the decision gets it again, then answers',
+        () async {
+      final d = await repo.createDecision(twoOptions);
+      await repo.requestInsight(d.localId!, TriggerContext.preDecision);
+      final firstServerId = (await local.getDecision(d.localId!))!.serverId;
+      remote.reset(); // e.g. the fake server after an app restart
+      now = now.add(const Duration(minutes: 1));
+
+      final insight =
+          await repo.requestInsight(d.localId!, TriggerContext.preDecision);
+
+      final stored = await local.getDecision(d.localId!);
+      expect(insight.status, InsightStatus.complete);
+      expect(stored!.serverId, isNot(firstServerId));
+      expect(insight.decisionServerId, stored.serverId);
+      expect(stored.syncStatus, SyncStatus.synced);
+    });
+
+    test('a decision deleted on another device is removed here', () async {
+      final d = await repo.createDecision(twoOptions);
+      await repo.requestInsight(d.localId!, TriggerContext.preDecision);
+      final serverId = (await local.getDecision(d.localId!))!.serverId!;
+      remote.editElsewhere(serverId,
+          at: now.add(const Duration(minutes: 1)), delete: true);
+      now = now.add(const Duration(minutes: 2));
+
+      await expectLater(repo.requestInsight(d.localId!, TriggerContext.preDecision),
+          brokenRule('deleted on another device'));
+      expect(await local.getDecision(d.localId!), isNull);
     });
 
     test('a look back sends the evaluation and compares confidence', () async {

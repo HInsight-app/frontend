@@ -20,11 +20,23 @@ class MemoryDecisionLocalDataSource implements DecisionLocalDataSource {
   // Fires after every write so the watch streams can re-emit.
   final _changes = StreamController<void>.broadcast();
 
-  Stream<T> _watch<T>(T Function() read) async* {
-    yield read();
-    await for (final _ in _changes.stream) {
-      yield read();
-    }
+  // A plain controller rather than an async* generator: cancelling one of
+  // those waits until the next change, so a cancelled watch would linger.
+  Stream<T> _watch<T>(T Function() read) {
+    StreamSubscription<void>? changes;
+    late final StreamController<T> controller;
+    controller = StreamController<T>(
+      onListen: () {
+        controller.add(read());
+        changes = _changes.stream.listen((_) => controller.add(read()));
+      },
+      // Not returned: nothing needs to wait for it, and handing back that
+      // future kept widget tests (fake time) from finishing.
+      onCancel: () {
+        changes?.cancel();
+      },
+    );
+    return controller.stream;
   }
 
   void _changed() => _changes.add(null);
@@ -155,4 +167,33 @@ class MemoryDecisionLocalDataSource implements DecisionLocalDataSource {
     _tags.remove(localId);
     _changed();
   }
+
+  @override
+  Future<List<Decision>> getUnsyncedDecisions(String userId) async => _decisions
+      .values
+      .where((d) => d.userId == userId && d.syncStatus != SyncStatus.synced)
+      .toList();
+
+  @override
+  Future<List<Evaluation>> getUnsyncedEvaluations() async => _evaluations.values
+      .where((e) => e.syncStatus != SyncStatus.synced)
+      .toList();
+
+  @override
+  Stream<int> watchUnsyncedCount(String userId) => _watch(() {
+        final visible = _decisionsOf(userId).map((d) => d.localId).toSet();
+        return _decisions.values
+                .where((d) =>
+                    d.userId == userId && d.syncStatus != SyncStatus.synced)
+                .length +
+            _tags.values
+                .where((t) =>
+                    t.userId == userId && t.syncStatus != SyncStatus.synced)
+                .length +
+            _evaluations.values
+                .where((e) =>
+                    e.syncStatus != SyncStatus.synced &&
+                    visible.contains(e.decisionLocalId))
+                .length;
+      });
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/database/sync_status.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/date_format.dart';
 import '../../../../core/widgets/app_button.dart';
@@ -112,12 +113,28 @@ class _DecisionBody extends ConsumerWidget {
     return ListView(
       padding: const EdgeInsets.all(24),
       children: [
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             Pill(text: decision.status.label, color: decision.status.color),
-            const SizedBox(width: 8),
             Text('Created ${formatDate(decision.createdAt)}',
                 style: textTheme.labelSmall),
+            if (decision.syncStatus != SyncStatus.synced)
+              Tooltip(
+                message: 'Saved on this phone; it will be sent to the server '
+                    'when you are online.',
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.cloud_upload_outlined,
+                        size: 14, color: textTheme.labelSmall?.color),
+                    const SizedBox(width: 4),
+                    Text('Not synced yet', style: textTheme.labelSmall),
+                  ],
+                ),
+              ),
           ],
         ),
         const SizedBox(height: 12),

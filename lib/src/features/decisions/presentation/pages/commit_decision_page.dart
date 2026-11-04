@@ -9,6 +9,7 @@ import '../../decisions_providers.dart';
 import '../../domain/entities/decision.dart';
 import '../../domain/usecases/decision_usecases.dart';
 import '../decision_providers.dart';
+import '../widgets/missing_decision.dart';
 
 /// Choosing one option and saying why (paper III-F step 4).
 class CommitDecisionPage extends ConsumerStatefulWidget {
@@ -55,13 +56,14 @@ class _CommitDecisionPageState extends ConsumerState<CommitDecisionPage> {
 
   @override
   Widget build(BuildContext context) {
-    final decision = ref.watch(decisionProvider(widget.decisionId)).valueOrNull;
+    final loaded = ref.watch(decisionProvider(widget.decisionId));
+    final decision = loaded.valueOrNull;
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Commit to an option')),
       body: decision == null
-          ? const Center(child: CircularProgressIndicator())
+          ? MissingDecision(loading: !loaded.hasValue && !loaded.hasError)
           : ListView(
               padding: const EdgeInsets.all(24),
               children: [

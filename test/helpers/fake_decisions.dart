@@ -7,16 +7,23 @@ import 'package:hinsight/src/features/auth/auth.dart';
 import 'package:hinsight/src/features/decisions/data/local/memory_decision_local_data_source.dart';
 import 'package:hinsight/src/features/decisions/data/remote/fake_decision_remote_data_source.dart';
 import 'package:hinsight/src/features/decisions/decisions_providers.dart';
+import 'package:hinsight/src/features/decisions/presentation/sync_controller.dart';
 
 import 'fake_auth.dart';
 
 /// In-memory decision storage and an instant fake server, as provider
-/// overrides (main() normally supplies the store).
-List<Override> decisionOverrides() => [
+/// overrides (main() normally supplies the store). The background sync is
+/// off unless [autoSync]: its timers would outlive tests that aren't about it.
+List<Override> decisionOverrides({
+  FakeDecisionRemoteDataSource? server,
+  bool autoSync = false,
+}) =>
+    [
       decisionLocalDataSourceProvider
           .overrideWithValue(MemoryDecisionLocalDataSource()),
-      decisionRemoteDataSourceProvider
-          .overrideWithValue(FakeDecisionRemoteDataSource(latency: Duration.zero)),
+      decisionRemoteDataSourceProvider.overrideWithValue(
+          server ?? FakeDecisionRemoteDataSource(latency: Duration.zero)),
+      autoSyncProvider.overrideWithValue(autoSync),
     ];
 
 /// Pumps a few frames. pumpAndSettle can't be used: loading spinners never
@@ -29,9 +36,13 @@ Future<void> settle(WidgetTester tester) async {
 
 /// The whole app (real router and theme) with a signed-in student, opened at
 /// [location]. Returns the container so tests can reach the repository.
+/// [server], [autoSync] and [overrides] are for tests about syncing.
 Future<ProviderContainer> pumpSignedInApp(
   WidgetTester tester, {
   String location = '/',
+  FakeDecisionRemoteDataSource? server,
+  bool autoSync = false,
+  List<Override> overrides = const [],
 }) async {
   // A tall phone-width screen, so long pages build all their parts.
   tester.view.physicalSize = const Size(420, 2400);
@@ -41,7 +52,8 @@ Future<ProviderContainer> pumpSignedInApp(
   final container = ProviderContainer(overrides: [
     authRepositoryProvider
         .overrideWithValue(FakeAuthRepository(savedUser: testUser)),
-    ...decisionOverrides(),
+    ...decisionOverrides(server: server, autoSync: autoSync),
+    ...overrides,
   ]);
   addTearDown(container.dispose);
   await tester.pumpWidget(UncontrolledProviderScope(

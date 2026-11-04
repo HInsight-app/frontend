@@ -1,4 +1,5 @@
 import '../../../../core/database/sync_status.dart';
+import '../../../../core/network/api_exception.dart';
 import '../../../../core/utils/uuid.dart';
 import '../../../tags/domain/entities/tag.dart';
 import '../../domain/entities/ai_insight.dart';
@@ -9,20 +10,23 @@ import '../../domain/entities/evaluation.dart';
 import '../../domain/repositories/decision_repository.dart';
 import '../local/decision_local_data_source.dart';
 import '../remote/decision_remote_data_source.dart';
+import 'sync_repository_impl.dart';
 
 /// Offline-first: every change is saved on the device and marked for sync
-/// (paper III-F). Only AI insights call the server straight away, because the
-/// AI runs there; the full background sync comes in Phase 7.
+/// (paper III-F); [sync] sends it to the server in the background. Only AI
+/// insights call the server straight away, because the AI runs there.
 class DecisionRepositoryImpl implements DecisionRepository {
   DecisionRepositoryImpl({
     required this.local,
     required this.remote,
+    required this.sync,
     required this.userId,
     DateTime Function()? clock,
   }) : _now = clock ?? DateTime.now;
 
   final DecisionLocalDataSource local;
   final DecisionRemoteDataSource remote;
+  final SyncRepositoryImpl sync;
   final String userId;
   final DateTime Function() _now;
 
@@ -224,24 +228,34 @@ class DecisionRepositoryImpl implements DecisionRepository {
       await local.putInsight(previous.copyWith(status: InsightStatus.failed));
     }
 
-    // The server analyses its own copy, so send local changes first. If this
-    // fails (e.g. offline), nothing is recorded and the ApiException surfaces.
-    final onServer = await _pushDecision(d);
-    if (trigger == TriggerContext.postEvaluation) {
-      await _pushEvaluation(localId, onServer.serverId!);
-    }
+    // The server analyses its own copy, so send the changes saved on the
+    // device first. If that fails (e.g. offline), nothing is recorded and the
+    // error surfaces.
+    var serverId = await _sendForInsight(localId, trigger);
 
     final processing = await local.putInsight(AiInsight(
       decisionLocalId: localId,
-      decisionServerId: onServer.serverId!,
+      decisionServerId: serverId,
       triggerContext: trigger,
       status: InsightStatus.processing,
       requestedAt: now,
     ));
     try {
-      final result = await remote.requestInsight(onServer.serverId!, trigger);
+      RemoteInsight result;
+      try {
+        result = await remote.requestInsight(serverId, trigger);
+      } on ApiException catch (e) {
+        if (e.statusCode != 404) rethrow;
+        // The server has no record of the decision (its database was reset,
+        // or the fake server restarted with the app): send it again and ask
+        // once more.
+        await sync.forgetServerCopy(localId);
+        serverId = await _sendForInsight(localId, trigger);
+        result = await remote.requestInsight(serverId, trigger);
+      }
       return local.putInsight(processing.copyWith(
         status: InsightStatus.complete,
+        decisionServerId: serverId,
         serverId: result.serverId,
         modelVersion: result.modelVersion,
         insightText: result.insightText,
@@ -253,50 +267,44 @@ class DecisionRepositoryImpl implements DecisionRepository {
         modelConfidence: result.modelConfidence,
         generatedAt: result.generatedAt,
       ));
+    } on DecisionConflictException catch (conflict) {
+      // Deleted on another device: the server's copy says so. Removing the
+      // decision here also removes this request.
+      await local.putInsight(processing.copyWith(status: InsightStatus.failed));
+      await sync.applyServerCopy(localId, conflict.serverCopy);
+      throw const DecisionException(
+          'This decision was deleted on another device.');
     } catch (_) {
       await local.putInsight(processing.copyWith(status: InsightStatus.failed));
       rethrow;
     }
   }
 
-  /// Makes sure the server has the latest version of [d]. Phase 7's sync
-  /// reuses this for every pending decision.
-  Future<Decision> _pushDecision(Decision d) async {
-    final RemoteDecisionIds ids;
-    switch (d.syncStatus) {
-      case SyncStatus.synced:
-        return d;
-      case SyncStatus.pendingCreate:
-        ids = await remote.createDecision(d);
-      case SyncStatus.pendingUpdate:
-        ids = await remote.updateDecision(d);
-      case SyncStatus.pendingDelete:
-        throw const DecisionException('This decision no longer exists.');
+  /// Syncs, then returns the decision's server id once the server has it
+  /// (and its evaluation, for a look back).
+  Future<String> _sendForInsight(int localId, TriggerContext trigger) async {
+    final report = await sync.syncPendingChanges();
+    if (report.stopMessage != null) {
+      throw ApiException(report.stopMessage!,
+          isConnectionProblem: report.offline);
     }
 
-    // The student may have edited the decision while the request was in
-    // flight; keep those edits and leave them marked for the next sync.
-    final latest = await local.getDecision(d.localId!) ?? d;
-    final editedMeanwhile = latest.updatedAt != d.updatedAt;
-    return local.putDecision(latest.copyWith(
-      serverId: ids.id,
-      options: [
-        for (final o in latest.options)
-          o.copyWith(serverId: ids.optionIds[o.key] ?? o.serverId),
-      ],
-      syncStatus: editedMeanwhile ? SyncStatus.pendingUpdate : SyncStatus.synced,
-    ));
-  }
-
-  Future<void> _pushEvaluation(int decisionLocalId, String decisionServerId) async {
-    final e = await local.getEvaluation(decisionLocalId);
-    if (e == null || e.syncStatus != SyncStatus.pendingCreate) return;
-    final id = await remote.createEvaluation(decisionServerId, e);
-    await local.putEvaluation(e.copyWith(
-      serverId: id,
-      decisionServerId: decisionServerId,
-      syncStatus: SyncStatus.synced,
-    ));
+    final d = await local.getDecision(localId);
+    if (d == null || !_isVisible(d)) {
+      throw const DecisionException('This decision no longer exists.');
+    }
+    final evaluation = trigger == TriggerContext.postEvaluation
+        ? await local.getEvaluation(localId)
+        : null;
+    final serverId = d.serverId;
+    if (serverId == null || (evaluation != null && evaluation.serverId == null)) {
+      // Say why, if the sync noted a failure for this decision.
+      final reason =
+          report.failures.where((f) => f.contains('"${d.title}"')).firstOrNull;
+      throw ApiException(reason ??
+          "This decision couldn't be sent to the server. Please try again.");
+    }
+    return serverId;
   }
 
   // --- Tags ---

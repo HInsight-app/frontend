@@ -13,6 +13,7 @@ import '../../../decisions/domain/entities/decision_enums.dart';
 import '../../../decisions/presentation/decision_providers.dart';
 import '../../../decisions/presentation/widgets/decision_list_card.dart';
 import '../../../decisions/presentation/widgets/insight_card.dart';
+import '../../../decisions/presentation/widgets/sync_status_banner.dart';
 import '../widgets/stat_card.dart';
 
 /// The Dashboard tab: where the student's decisions stand, what is due for a
@@ -69,6 +70,8 @@ class HomePage extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(24, 12, 24, 96),
         children: [
+          // Changes not yet on the server (offline, or still sending)
+          const SyncStatusBanner(),
           Text(
             name == null ? 'Welcome back' : 'Welcome back, $name',
             style: textTheme.bodyMedium

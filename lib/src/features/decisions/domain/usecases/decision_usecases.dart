@@ -2,7 +2,9 @@ import '../entities/ai_insight.dart';
 import '../entities/decision.dart';
 import '../entities/decision_enums.dart';
 import '../entities/evaluation.dart';
+import '../entities/sync_report.dart';
 import '../repositories/decision_repository.dart';
+import '../repositories/sync_repository.dart';
 
 // One use case per step of the decision flow (paper III-F), like the auth
 // feature's use cases. They are thin today; rules live in the repository so
@@ -62,6 +64,14 @@ class CommitDecisionUseCase {
         chosenOptionKey: chosenOptionKey,
         commitmentNote: commitmentNote,
       );
+}
+
+/// Sends the changes saved on the device to the server (paper III-F).
+class SyncPendingChangesUseCase {
+  SyncPendingChangesUseCase(this.repository);
+  final SyncRepository repository;
+
+  Future<SyncReport> execute() => repository.syncPendingChanges();
 }
 
 class EvaluateDecisionUseCase {

@@ -199,6 +199,89 @@ class IsarDecisionLocalDataSource implements DecisionLocalDataSource {
   Future<void> deleteTagPermanently(int localId) =>
       isar.writeTxn(() => isar.isarTags.delete(localId));
 
+  @override
+  Future<List<Decision>> getUnsyncedDecisions(String userId) async {
+    final rows = await isar.isarDecisions
+        .where()
+        .userIdEqualTo(userId)
+        .filter()
+        .not()
+        .syncStatusEqualTo(SyncStatus.synced)
+        .findAll();
+    return rows.map(_toDecision).toList();
+  }
+
+  @override
+  Future<List<Evaluation>> getUnsyncedEvaluations() async {
+    final rows = await isar.isarEvaluations
+        .filter()
+        .not()
+        .syncStatusEqualTo(SyncStatus.synced)
+        .findAll();
+    return rows.map(_toEvaluation).toList();
+  }
+
+  @override
+  Stream<int> watchUnsyncedCount(String userId) {
+    // Re-count when any of the three collections changes.
+    final subscriptions = <StreamSubscription<void>>[];
+    late final StreamController<int> controller;
+    Future<void> emit() async {
+      final count = await _unsyncedCount(userId);
+      if (!controller.isClosed) controller.add(count);
+    }
+
+    controller = StreamController<int>(
+      onListen: () {
+        subscriptions
+          ..add(isar.isarDecisions.watchLazy().listen((_) => emit()))
+          ..add(isar.isarEvaluations.watchLazy().listen((_) => emit()))
+          ..add(isar.isarTags.watchLazy().listen((_) => emit()));
+        emit();
+      },
+      onCancel: () async {
+        for (final s in subscriptions) {
+          await s.cancel();
+        }
+      },
+    );
+    return controller.stream;
+  }
+
+  Future<int> _unsyncedCount(String userId) async {
+    final decisions = await isar.isarDecisions
+        .where()
+        .userIdEqualTo(userId)
+        .filter()
+        .not()
+        .syncStatusEqualTo(SyncStatus.synced)
+        .count();
+    final tags = await isar.isarTags
+        .where()
+        .userIdEqualToAnyName(userId)
+        .filter()
+        .not()
+        .syncStatusEqualTo(SyncStatus.synced)
+        .count();
+    final visible = (await isar.isarDecisions
+            .where()
+            .userIdEqualTo(userId)
+            .filter()
+            .deletedAtIsNull()
+            .localIdProperty()
+            .findAll())
+        .toSet();
+    final evaluations = (await isar.isarEvaluations
+            .filter()
+            .not()
+            .syncStatusEqualTo(SyncStatus.synced)
+            .decisionLocalIdProperty()
+            .findAll())
+        .where(visible.contains)
+        .length;
+    return decisions + tags + evaluations;
+  }
+
   // --- Mapping between Isar records and domain entities ---
 
   // OPTIONS.pros / cons are single TEXT columns, so each list is stored as

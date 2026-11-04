@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../core/widgets/brand_app_bar.dart';
 import '../../../../core/widgets/empty_state.dart';
+import '../../domain/entities/decision.dart';
 import '../../domain/entities/decision_enums.dart';
 import '../decision_labels.dart';
 import '../decision_providers.dart';
@@ -22,6 +23,11 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
   final _search = TextEditingController();
   DecisionStatus? _status;
 
+  // Each search or filter is a new query that starts out loading. Showing
+  // the last results meanwhile stops the list flashing to a spinner (and
+  // jumping back to the top) on every keystroke.
+  List<Decision>? _lastResults;
+
   @override
   void dispose() {
     _search.dispose();
@@ -30,9 +36,11 @@ class _HistoryPageState extends ConsumerState<HistoryPage> {
 
   @override
   Widget build(BuildContext context) {
-    final decisions = ref
-        .watch(decisionListProvider((status: _status, search: _search.text)))
-        .valueOrNull;
+    final query = ref
+        .watch(decisionListProvider((status: _status, search: _search.text)));
+    final decisions =
+        query.valueOrNull ?? (query.isLoading ? _lastResults : null);
+    _lastResults = decisions;
     final filtering = _status != null || _search.text.trim().isNotEmpty;
 
     return Scaffold(

@@ -177,6 +177,63 @@ void main() {
     expect(find.text('1 of 1 checks'), findsOneWidget);
   });
 
+  testWidgets('typing a search keeps the list on screen (no spinner flash)',
+      (tester) async {
+    final container = await pumpSignedInApp(tester);
+    await _seed(tester, container);
+    container.read(goRouterProvider).go('/history');
+    await settle(tester);
+
+    await tester.enterText(find.byType(TextField), 'elec');
+    await tester.pump(); // The first frame after the keystroke
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.text('Pick an elective'), findsOneWidget);
+  });
+
+  testWidgets('a decision not yet on the server says so until it syncs',
+      (tester) async {
+    final container = await pumpSignedInApp(tester);
+    final d = await _seed(tester, container);
+    container.read(goRouterProvider).go('/decisions/${d.localId}');
+    await settle(tester);
+    expect(find.text('Not synced yet'), findsOneWidget);
+
+    await tester.runAsync(
+        () => container.read(syncRepositoryProvider).syncPendingChanges());
+    await settle(tester);
+    expect(find.text('Not synced yet'), findsNothing);
+  });
+
+  testWidgets('a review date that has passed can still be changed',
+      (tester) async {
+    final container = await pumpSignedInApp(tester);
+    final past = DateTime.now().subtract(const Duration(days: 3));
+    final d = await _seed(tester, container,
+        _elective.copyWith(scheduledReviewDate: past));
+    container.read(goRouterProvider).go('/decisions/${d.localId}/edit');
+    await settle(tester);
+
+    // The picker used to fail here: its first allowed day is today.
+    await _tapText(tester, 'Change');
+
+    expect(tester.takeException(), isNull);
+    expect(find.byType(DatePickerDialog), findsOneWidget);
+  });
+
+  testWidgets('commit and evaluate pages say when the decision is gone',
+      (tester) async {
+    final container = await pumpSignedInApp(tester);
+    for (final page in ['commit', 'evaluate']) {
+      container.read(goRouterProvider).go('/decisions/999/$page');
+      await settle(tester);
+      expect(find.text('This decision no longer exists.'), findsOneWidget,
+          reason: page);
+      expect(find.byType(CircularProgressIndicator), findsNothing,
+          reason: page);
+    }
+  });
+
   testWidgets('deleting a decision asks first, then removes it',
       (tester) async {
     final container = await pumpSignedInApp(tester);

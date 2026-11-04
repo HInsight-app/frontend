@@ -50,7 +50,8 @@ abstract class DecisionRepository {
 
   /// Asks the AI to check the decision: before committing ([TriggerContext.preDecision])
   /// or after evaluating ([TriggerContext.postEvaluation]). Needs a connection;
-  /// the decision is sent to the server first if it hasn't been yet.
+  /// the changes waiting on the device are synced first, so the server has
+  /// the decision (and its evaluation) as the student sees it.
   Future<AiInsight> requestInsight(int localId, TriggerContext trigger);
 
   Stream<List<Tag>> watchTags();

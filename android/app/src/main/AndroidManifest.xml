@@ -3,7 +3,7 @@
          manifests already declare it, which is why it only broke in release. -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application
-        android:label="frontend"
+        android:label="HInsight"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
