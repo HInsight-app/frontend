@@ -4,7 +4,8 @@ import '../models/auth_response.dart';
 // The Interface
 abstract class AuthRemoteDataSource {
   Future<AuthResponse> login(String email, String password, bool remember);
-  Future<AuthResponse> register(String name, String email, String password);
+  Future<AuthResponse> register(
+      String displayName, String email, String password, bool remember);
 }
 
 // The Implementation
@@ -31,14 +32,14 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
   @override
   Future<AuthResponse> register(
-      String name, String email, String password) async {
-    // NOTE: Replace '/register' with your backend's actual endpoint path
+      String displayName, String email, String password, bool remember) async {
     final response = await dio.post(
       '/auth/register',
       data: {
-        'display_name': name,
+        'display_name': displayName,
         'email': email,
         'password': password,
+        'remember': remember,
       },
     );
 

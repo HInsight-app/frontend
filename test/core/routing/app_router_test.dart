@@ -4,19 +4,27 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hinsight/core.dart';
 import 'package:hinsight/src/core/routing/app_router.dart';
 import 'package:hinsight/src/core/widgets/tab_placeholder_page.dart';
+import 'package:hinsight/src/features/auth/auth.dart';
 import 'package:hinsight/src/features/auth/presentation/pages/login_page.dart';
 import 'package:hinsight/src/features/auth/presentation/pages/register_page.dart';
 import 'package:hinsight/src/features/home/presentation/pages/home_page.dart';
 import 'package:hinsight/src/features/home/presentation/pages/sandbox_page.dart';
 
-// Uses the real router from goRouterProvider and the real theme.
+import '../../helpers/fake_auth.dart';
+
+// Uses the real router from goRouterProvider and the real theme, with a fake
+// auth repository so tests choose whether the user is signed in.
 void main() {
   late ProviderContainer container;
+  late FakeAuthRepository auth;
 
-  setUp(() => container = ProviderContainer());
   tearDown(() => container.dispose());
 
-  Future<void> pumpRouter(WidgetTester tester) async {
+  Future<void> pumpRouter(WidgetTester tester, {required bool signedIn}) async {
+    auth = FakeAuthRepository(savedUser: signedIn ? testUser : null);
+    container = ProviderContainer(
+      overrides: [authRepositoryProvider.overrideWithValue(auth)],
+    );
     await tester.pumpWidget(UncontrolledProviderScope(
       container: container,
       child: MaterialApp.router(
@@ -32,26 +40,38 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   }
 
-  testWidgets('starts on the home page', (tester) async {
-    await pumpRouter(tester);
+  testWidgets('a remembered user starts on the dashboard', (tester) async {
+    await pumpRouter(tester, signedIn: true);
     await waitForTransition(tester);
 
     expect(find.byType(HomePage), findsOneWidget);
   });
 
-  final routes = <String, Type>{
-    '/login': LoginPage,
-    '/register': RegisterPage,
-    '/sandbox': SandboxPage,
+  testWidgets('a signed-out user starts on the login page', (tester) async {
+    await pumpRouter(tester, signedIn: false);
+    await waitForTransition(tester);
+
+    expect(find.byType(LoginPage), findsOneWidget);
+  });
+
+  testWidgets('a signed-out user cannot open a tab directly', (tester) async {
+    await pumpRouter(tester, signedIn: false);
+    container.read(goRouterProvider).go('/history');
+    await waitForTransition(tester);
+
+    expect(find.byType(LoginPage), findsOneWidget);
+  });
+
+  final signedInRoutes = <String, Type>{
     '/': HomePage,
     '/analyze': TabPlaceholderPage,
     '/insights': TabPlaceholderPage,
     '/history': TabPlaceholderPage,
+    '/sandbox': SandboxPage,
   };
-
-  routes.forEach((path, page) {
-    testWidgets('$path renders $page without errors', (tester) async {
-      await pumpRouter(tester);
+  signedInRoutes.forEach((path, page) {
+    testWidgets('$path renders $page when signed in', (tester) async {
+      await pumpRouter(tester, signedIn: true);
       container.read(goRouterProvider).go(path);
       await waitForTransition(tester);
 
@@ -59,20 +79,46 @@ void main() {
     });
   });
 
+  final signedOutRoutes = <String, Type>{
+    '/login': LoginPage,
+    '/register': RegisterPage,
+  };
+  signedOutRoutes.forEach((path, page) {
+    testWidgets('$path renders $page when signed out', (tester) async {
+      await pumpRouter(tester, signedIn: false);
+      container.read(goRouterProvider).go(path);
+      await waitForTransition(tester);
+
+      expect(find.byType(page), findsOneWidget);
+    });
+  });
+
+  testWidgets('logging out from the dashboard returns to login',
+      (tester) async {
+    await pumpRouter(tester, signedIn: true);
+    await waitForTransition(tester);
+
+    await tester.tap(find.byTooltip('Log out'));
+    await waitForTransition(tester);
+
+    expect(find.byType(LoginPage), findsOneWidget);
+    expect(auth.logoutCalls, 1);
+  });
+
   testWidgets('the tabs show the bottom nav; full-screen pages do not',
       (tester) async {
-    await pumpRouter(tester);
+    await pumpRouter(tester, signedIn: true);
     await waitForTransition(tester);
     expect(find.byType(NavigationBar), findsOneWidget);
 
-    container.read(goRouterProvider).go('/login');
+    container.read(goRouterProvider).go('/sandbox');
     await waitForTransition(tester);
     expect(find.byType(NavigationBar), findsNothing);
   });
 
   testWidgets('tapping a tab switches pages and keeps the others alive',
       (tester) async {
-    await pumpRouter(tester);
+    await pumpRouter(tester, signedIn: true);
     await waitForTransition(tester);
 
     await tester.tap(find.text('History'));

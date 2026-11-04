@@ -1,35 +1,69 @@
+import 'dart:convert';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+import '../../../../core/storage/token_storage.dart';
+import '../models/auth_response.dart';
 
 // The Interface (The Menu)
 abstract class AuthLocalDataSource {
-  Future<void> saveToken(String token);
-  Future<String?> getToken();
-  Future<void> deleteToken();
+  /// Saves the session. With [persist] it is also written to the device.
+  Future<void> saveSession(AuthResponse session, {required bool persist});
+
+  /// The session written to the device by an earlier run, or null.
+  Future<AuthResponse?> readSavedSession();
+
+  Future<void> clearSession();
 }
 
 // The Implementation (The Vault Manager)
 class AuthLocalDataSourceImpl implements AuthLocalDataSource {
+  final TokenStorage tokenStorage;
   final FlutterSecureStorage secureStorage;
 
-  // We use a constant key name so we always open the right "drawer" in the vault
-  static const String _tokenKey = 'jwt_token';
+  // The token lives in TokenStorage (shared with the Dio interceptor); the
+  // user's id, email and name are kept next to it under this key.
+  static const String _userKey = 'auth_user';
 
-  AuthLocalDataSourceImpl({required this.secureStorage});
+  AuthLocalDataSourceImpl({
+    required this.tokenStorage,
+    required this.secureStorage,
+  });
 
   @override
-  Future<void> saveToken(String token) async {
-    await secureStorage.write(key: _tokenKey, value: token);
-    print('Vault: Token saved securely!');
+  Future<void> saveSession(AuthResponse session, {required bool persist}) async {
+    await tokenStorage.save(session.token, persist: persist);
+    if (persist) {
+      await secureStorage.write(
+        key: _userKey,
+        value: jsonEncode(session.user.toJson()),
+      );
+    } else {
+      await secureStorage.delete(key: _userKey);
+    }
   }
 
   @override
-  Future<String?> getToken() async {
-    return await secureStorage.read(key: _tokenKey);
+  Future<AuthResponse?> readSavedSession() async {
+    final token = await tokenStorage.read();
+    final userJson = await secureStorage.read(key: _userKey);
+    if (token == null || token.isEmpty || userJson == null) return null;
+
+    try {
+      final user = AuthUserModel.fromJson(
+        jsonDecode(userJson) as Map<String, dynamic>,
+      );
+      return AuthResponse(user: user, token: token);
+    } on FormatException {
+      return null; // Unreadable saved data: treat as signed out
+    } on TypeError {
+      return null;
+    }
   }
 
   @override
-  Future<void> deleteToken() async {
-    await secureStorage.delete(key: _tokenKey);
-    print('Vault: Token deleted (Logged out).');
+  Future<void> clearSession() async {
+    await tokenStorage.delete();
+    await secureStorage.delete(key: _userKey);
   }
 }

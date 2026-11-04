@@ -5,6 +5,7 @@ INI PLACEHOLDER BISA DIGANTI SEMUANYA
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../auth/presentation/controllers/auth_controller.dart';
 import '../controllers/home_controller.dart';
 import '../widgets/decision_card.dart';
 import '../widgets/stat_card.dart';
@@ -38,6 +39,15 @@ class HomePage extends ConsumerWidget {
             icon: Icon(Icons.settings_outlined, color: colorScheme.primary),
             onPressed: () {
               context.push('/sandbox');
+            },
+          ),
+          IconButton(
+            tooltip: 'Log out',
+            icon: Icon(Icons.logout_rounded, color: colorScheme.primary),
+            onPressed: () async {
+              await ref.read(authControllerProvider.notifier).logout();
+              // The router also does this on its own, except in the web preview.
+              if (context.mounted) context.go('/login');
             },
           ),
         ],

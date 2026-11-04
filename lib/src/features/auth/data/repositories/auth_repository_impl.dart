@@ -1,8 +1,10 @@
-import '../../domain/repositories/auth_repository.dart';
-import '../datasources/auth_remote_data_source.dart';
-import '../datasources/auth_local_data_source.dart';
-import '../models/auth_response.dart';
 import 'package:dio/dio.dart';
+
+import '../../../../core/network/api_exception.dart';
+import '../../domain/entities/auth_user.dart';
+import '../../domain/repositories/auth_repository.dart';
+import '../datasources/auth_local_data_source.dart';
+import '../datasources/auth_remote_data_source.dart';
 
 class AuthRepositoryImpl implements AuthRepository {
   final AuthRemoteDataSource remoteDataSource;
@@ -14,33 +16,49 @@ class AuthRepositoryImpl implements AuthRepository {
   });
 
   @override
-  Future<AuthResponse> login(
-      String email, String password, bool remember) async {
+  Future<AuthUser> login({
+    required String email,
+    required String password,
+    required bool remember,
+  }) async {
     try {
-      final response = await remoteDataSource.login(email, password, remember);
-      await localDataSource.saveToken(response.token);
-      return response;
+      final session = await remoteDataSource.login(email, password, remember);
+      await localDataSource.saveSession(session, persist: remember);
+      return session.user.toEntity();
     } on DioException catch (e) {
-      // Catch specific Dio errors and throw a cleaner exception
-      throw Exception(
-          'Login failed: ${e.response?.data['message'] ?? e.message}');
-    } catch (e) {
-      throw Exception('An unexpected error occurred: $e');
+      // Turns the backend's {"error": ...} into a message for the user
+      throw ApiException.fromDioException(e);
     }
   }
 
   @override
-  Future<AuthResponse> register(
-      String name, String email, String password) async {
+  Future<AuthUser> register({
+    required String displayName,
+    required String email,
+    required String password,
+  }) async {
     try {
-      final response = await remoteDataSource.register(name, email, password);
-      await localDataSource.saveToken(response.token);
-      return response;
+      // A new account stays signed in, like ticking "Remember me".
+      final session =
+          await remoteDataSource.register(displayName, email, password, true);
+      await localDataSource.saveSession(session, persist: true);
+      return session.user.toEntity();
     } on DioException catch (e) {
-      throw Exception(
-          'Registration failed: ${e.response?.data['message'] ?? e.message}');
-    } catch (e) {
-      throw Exception('An unexpected error occurred: $e');
+      throw ApiException.fromDioException(e);
     }
+  }
+
+  @override
+  Future<AuthUser?> restoreSession() async {
+    final session = await localDataSource.readSavedSession();
+    return session?.user.toEntity();
+  }
+
+  @override
+  Future<void> logout() async {
+    // Local only for now. The paper (III-D) also revokes the session on the
+    // server, but the backend has no logout endpoint yet; call it here once
+    // it exists.
+    await localDataSource.clearSession();
   }
 }

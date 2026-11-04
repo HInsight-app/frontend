@@ -10,19 +10,32 @@ final tokenStorageProvider = Provider<TokenStorage>(
   (ref) => TokenStorage(ref.watch(secureStorageProvider)),
 );
 
-/// Reads and writes the login token (JWT) the backend issues.
+/// Reads and writes the login token the backend issues. The token is always
+/// kept in memory; it is also written to the device only when the user asks
+/// to be remembered, so an unremembered session ends when the app closes.
 class TokenStorage {
   TokenStorage(this._storage);
 
   final FlutterSecureStorage _storage;
+  String? _memoryToken;
 
-  /// Same key AuthLocalDataSourceImpl writes, so tokens saved by the login
-  /// page are found here. Phase 3 makes the auth feature use this class.
   static const tokenKey = 'jwt_token';
 
-  Future<String?> read() => _storage.read(key: tokenKey);
+  Future<String?> read() async =>
+      _memoryToken ?? await _storage.read(key: tokenKey);
 
-  Future<void> save(String token) => _storage.write(key: tokenKey, value: token);
+  Future<void> save(String token, {required bool persist}) async {
+    _memoryToken = token;
+    if (persist) {
+      await _storage.write(key: tokenKey, value: token);
+    } else {
+      // Don't leave an older remembered token behind.
+      await _storage.delete(key: tokenKey);
+    }
+  }
 
-  Future<void> delete() => _storage.delete(key: tokenKey);
+  Future<void> delete() async {
+    _memoryToken = null;
+    await _storage.delete(key: tokenKey);
+  }
 }

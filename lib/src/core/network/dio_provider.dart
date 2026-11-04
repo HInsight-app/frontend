@@ -2,7 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../routing/app_router.dart';
+import '../../features/auth/presentation/controllers/auth_controller.dart';
 import '../storage/token_storage.dart';
 import 'auth_interceptor.dart';
 
@@ -19,7 +19,8 @@ final baseUrlProvider = Provider<String>((ref) {
 });
 
 /// The one HTTP client every repository uses. It sends the login token and
-/// returns to the login page when the backend says the session has ended.
+/// signs the user out when the backend says the session has ended (the
+/// router then shows the login page).
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(BaseOptions(
     baseUrl: ref.watch(baseUrlProvider),
@@ -31,7 +32,8 @@ final dioProvider = Provider<Dio>((ref) {
 
   dio.interceptors.add(AuthInterceptor(
     tokenStorage: ref.watch(tokenStorageProvider),
-    onUnauthorized: () => ref.read(goRouterProvider).go('/login'),
+    onUnauthorized: () =>
+        ref.read(authControllerProvider.notifier).onSessionExpired(),
   ));
 
   ref.onDispose(dio.close);

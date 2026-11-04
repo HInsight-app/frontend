@@ -1,22 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:go_router/go_router.dart';
-import 'package:dio/dio.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import 'package:hinsight/core.dart';
-import 'package:hinsight/src/features/auth/auth.dart';
+import 'package:hinsight/src/core/widgets/app_snack_bar.dart';
+import 'package:hinsight/src/features/auth/presentation/controllers/auth_controller.dart';
 
-class LoginPage extends StatefulWidget {
+class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  ConsumerState<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> {
+class _LoginPageState extends ConsumerState<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
@@ -30,6 +29,44 @@ class _LoginPageState extends State<LoginPage> {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  Future<void> _login() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final email = _emailController.text.trim();
+    // Not trimmed: spaces can be part of a password.
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      showAppSnackBar(messenger, 'Enter your email and password.',
+          isError: true);
+      return;
+    }
+
+    setState(() {
+      _isLoginLoading = true;
+    });
+
+    try {
+      final user = await ref.read(authControllerProvider.notifier).login(
+            email: email,
+            password: password,
+            remember: _rememberMe,
+          );
+      showAppSnackBar(messenger, 'Welcome back, ${user.displayName}!');
+      // The router also does this on its own, except in the web preview.
+      if (mounted) context.go('/');
+    } catch (e) {
+      // ApiException carries the backend's message, e.g. "invalid credentials"
+      showAppSnackBar(messenger, e.toString(), isError: true);
+    } finally {
+      // Stop loading spinner
+      if (mounted) {
+        setState(() {
+          _isLoginLoading = false;
+        });
+      }
+    }
   }
 
   @override
@@ -53,6 +90,7 @@ class _LoginPageState extends State<LoginPage> {
                 label: 'Email',
                 hint: 'Email',
                 controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
               ),
 
               const SizedBox(height: 16),
@@ -98,68 +136,7 @@ class _LoginPageState extends State<LoginPage> {
                 type: ButtonType.primary,
                 text: 'Login',
                 isLoading: _isLoginLoading, // Hooks up the loading spinner
-                onPressed: () async {
-                  // Start loading spinner
-                  setState(() {
-                    _isLoginLoading = true;
-                  });
-
-                  try {
-                    // Setup the Tools (Network & Vault)
-                    final rawBaseUrl = dotenv.env['BASE_URL'];
-                    final baseUrl = rawBaseUrl?.trim();
-                    if (baseUrl == null || baseUrl.isEmpty) {
-                      throw StateError(
-                        'BASE_URL is not configured. Please set a valid BASE_URL in the environment.',
-                      );
-                    }
-                    final dio = Dio(BaseOptions(baseUrl: baseUrl));
-                    const secureStorage = FlutterSecureStorage();
-
-                    // Setup the Assembly Line (DataSources -> Repository -> UseCase)
-                    final remoteDataSource = AuthRemoteDataSourceImpl(dio: dio);
-                    final localDataSource =
-                        AuthLocalDataSourceImpl(secureStorage: secureStorage);
-                    final repository = AuthRepositoryImpl(
-                      remoteDataSource: remoteDataSource,
-                      localDataSource: localDataSource,
-                    );
-                    final loginUseCase = LoginUseCase(repository);
-
-                    // Grab user input
-                    final email = _emailController.text.trim();
-                    final password = _passwordController.text.trim();
-
-                    // Execute! (This saves the token automatically if successful)
-                    final response = await loginUseCase.execute(
-                        email, password, _rememberMe);
-
-                    // Handle Success
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Login Successful!'),
-                          backgroundColor: AppColors.success),
-                    );
-
-                    // context.go('/home'); // Navigate to home
-                  } catch (e) {
-                    // 7. Handle Failure
-                    if (!mounted) return;
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                          content: Text(e.toString()),
-                          backgroundColor: AppColors.error),
-                    );
-                  } finally {
-                    // Stop loading spinner
-                    if (mounted) {
-                      setState(() {
-                        _isLoginLoading = false;
-                      });
-                    }
-                  }
-                },
+                onPressed: _login,
               ),
 
               const SizedBox(height: 24),
@@ -178,11 +155,16 @@ class _LoginPageState extends State<LoginPage> {
               const SizedBox(height: 24),
 
               // --- GOOGLE LOGIN BUTTON ---
+              // The paper (III-D) requires Google sign-in, but it needs a
+              // backend endpoint and Google OAuth client IDs first.
               AppButton(
                   type: ButtonType.outline,
                   icon: FontAwesomeIcons.google,
                   text: 'Continue with Google',
-                  onPressed: () {}),
+                  onPressed: () => showAppSnackBar(
+                        ScaffoldMessenger.of(context),
+                        "Google sign-in isn't available yet. Please use your email.",
+                      )),
               const SizedBox(height: 64),
 
               // --- ROUTE TO REGISTER ---

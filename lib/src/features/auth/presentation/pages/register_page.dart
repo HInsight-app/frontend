@@ -1,19 +1,18 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hinsight/core.dart';
-import 'package:dio/dio.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:hinsight/src/features/auth/auth.dart';
+import 'package:hinsight/src/core/widgets/app_snack_bar.dart';
+import 'package:hinsight/src/features/auth/presentation/controllers/auth_controller.dart';
 
-class RegisterPage extends StatefulWidget {
+class RegisterPage extends ConsumerStatefulWidget {
   const RegisterPage({super.key});
 
   @override
-  State<RegisterPage> createState() => _RegisterPageState();
+  ConsumerState<RegisterPage> createState() => _RegisterPageState();
 }
 
-class _RegisterPageState extends State<RegisterPage> {
+class _RegisterPageState extends ConsumerState<RegisterPage> {
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
@@ -33,24 +32,17 @@ class _RegisterPageState extends State<RegisterPage> {
 
   // Pop Up ERROR message
   void _showErrorPopup(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      // Dark text comes from the snackbar theme; white on this red is hard to read
-      content: Text(message,
-          style: const TextStyle(fontWeight: FontWeight.bold)),
-      backgroundColor: AppColors.error,
-      behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      margin: const EdgeInsets.all(16),
-      duration: const Duration(seconds: 3),
-    ));
+    showAppSnackBar(ScaffoldMessenger.of(context), message, isError: true);
   }
 
-  // Validation Bouncer
-  void _handleRegistration() async {
+  // Validation Bouncer. These rules are stricter than the backend's (name 2+,
+  // password 8+), so students never see the backend's raw validation errors.
+  Future<void> _handleRegistration() async {
     final username = _nameController.text.trim();
     final email = _emailController.text.trim();
-    final password = _passwordController.text.trim();
-    final confirmPassword = _confirmPasswordController.text.trim();
+    // Not trimmed: spaces can be part of a password.
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
 
     if (username.length < 4) {
       _showErrorPopup('Username must be at least 4 characters long.');
@@ -73,57 +65,23 @@ class _RegisterPageState extends State<RegisterPage> {
       _showErrorPopup('Passwords do not match.');
       return;
     }
+    final messenger = ScaffoldMessenger.of(context);
     setState(() {
       _isLoading = true;
     });
     try {
-      // Setup the Tools
-      final configuredBaseUrl = dotenv.env['BASE_URL']?.trim();
-      if (configuredBaseUrl == null || configuredBaseUrl.isEmpty) {
-        throw Exception(
-          'Application configuration error: BASE_URL is not set.',
-        );
-      }
-      final parsedBaseUrl = Uri.tryParse(configuredBaseUrl);
-      if (parsedBaseUrl == null ||
-          !parsedBaseUrl.isAbsolute ||
-          parsedBaseUrl.scheme.isEmpty ||
-          parsedBaseUrl.host.isEmpty) {
-        throw Exception(
-          'Application configuration error: BASE_URL must be a valid absolute URL.',
-        );
-      }
-      final dio = Dio(BaseOptions(baseUrl: configuredBaseUrl));
-      const secureStorage = FlutterSecureStorage();
-
-      // Setup the Assembly Line
-      final remoteDataSource = AuthRemoteDataSourceImpl(dio: dio);
-      final localDataSource =
-          AuthLocalDataSourceImpl(secureStorage: secureStorage);
-      final repository = AuthRepositoryImpl(
-        remoteDataSource: remoteDataSource,
-        localDataSource: localDataSource,
-      );
-
-      final registerUseCase = RegisterUseCase(repository);
-
-      // Execute Registration
-      final response = await registerUseCase.execute(username, email, password);
-
-      // Handle Success
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content: Text('Account Created! You can now login.'),
-            backgroundColor: AppColors.success),
-      );
-
-      // Pop back to the Login screen
-      context.pop();
+      // Creates the account and signs in (the session is remembered)
+      final user = await ref.read(authControllerProvider.notifier).register(
+            displayName: username,
+            email: email,
+            password: password,
+          );
+      showAppSnackBar(messenger, 'Welcome to HInsight, ${user.displayName}!');
+      // The router also does this on its own, except in the web preview.
+      if (mounted) context.go('/');
     } catch (e) {
-      // Handle Failure
-      if (!mounted) return;
-      _showErrorPopup(e.toString());
+      // ApiException carries the backend's message
+      showAppSnackBar(messenger, e.toString(), isError: true);
     } finally {
       // Stop loading spinner
       if (mounted) {
@@ -212,8 +170,9 @@ class _RegisterPageState extends State<RegisterPage> {
                   ),
                   TextButton(
                     onPressed: () {
-                      // Pops the register screen off, returning to Login
-                      context.pop();
+                      // Back to Login; go there directly if Register was
+                      // opened without Login underneath (e.g. from a URL).
+                      context.canPop() ? context.pop() : context.go('/login');
                     },
                     // Purple and bold come from AppTheme's textButtonTheme
                     child: const Text('Login'),
