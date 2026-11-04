@@ -26,6 +26,9 @@ abstract class DecisionLocalDataSource {
 
   /// Newest request first.
   Stream<List<AiInsight>> watchInsights(int decisionLocalId);
+
+  /// Insights of all the user's decisions (not deleted ones), newest first.
+  Stream<List<AiInsight>> watchInsightsOfUser(String userId);
   Future<List<AiInsight>> getInsights(int decisionLocalId, TriggerContext trigger);
   Future<AiInsight> putInsight(AiInsight insight);
 

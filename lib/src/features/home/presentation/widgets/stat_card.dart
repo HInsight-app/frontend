@@ -19,7 +19,7 @@ class StatCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: bgColor,
         borderRadius: BorderRadius.circular(20),
@@ -33,9 +33,15 @@ class StatCard extends StatelessWidget {
             style: textTheme.headlineLarge?.copyWith(color: color), // 32 Extrabold
           ),
           const SizedBox(height: 4),
-          Text(
-            title,
-            style: textTheme.titleSmall?.copyWith(color: color),
+          // Three cards share a row on the dashboard; on a narrow phone the
+          // label shrinks rather than breaking mid-word.
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              title,
+              style: textTheme.titleSmall?.copyWith(color: color),
+            ),
           ),
         ],
       ),

@@ -194,9 +194,22 @@ class AppTheme {
           side: const BorderSide(color: AppColors.border),
         ),
       ),
+      // Selected chips (e.g. a chosen tag or filter) use the CTA lavender with
+      // dark text, so they stand out from the dark unselected ones.
       chipTheme: ChipThemeData(
-        backgroundColor: AppColors.secondary,
-        labelStyle: textTheme.labelMedium,
+        color: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected)
+              ? AppColors.cta
+              : AppColors.secondary,
+        ),
+        labelStyle: textTheme.labelMedium!.copyWith(
+          color: WidgetStateColor.resolveWith(
+            (states) => states.contains(WidgetState.selected)
+                ? AppColors.background
+                : AppColors.foreground,
+          ),
+        ),
+        checkmarkColor: AppColors.background,
         side: BorderSide.none,
         shape: const StadiumBorder(),
       ),

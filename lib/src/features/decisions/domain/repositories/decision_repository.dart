@@ -22,6 +22,9 @@ abstract class DecisionRepository {
   /// All insights for a decision, newest first.
   Stream<List<AiInsight>> watchInsights(int decisionLocalId);
 
+  /// Insights across all the user's decisions, newest first.
+  Stream<List<AiInsight>> watchAllInsights();
+
   Future<Decision> createDecision(DecisionDraft draft);
 
   /// Edits a decision that hasn't been committed yet.

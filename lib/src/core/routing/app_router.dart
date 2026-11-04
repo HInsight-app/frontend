@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -8,9 +7,15 @@ import '../../features/auth/presentation/controllers/auth_controller.dart';
 import '../../features/auth/presentation/pages/login_page.dart';
 import '../../features/auth/presentation/pages/register_page.dart';
 import '../../features/auth/presentation/pages/splash_page.dart';
+import '../../features/decisions/presentation/pages/analyze_page.dart';
+import '../../features/decisions/presentation/pages/commit_decision_page.dart';
+import '../../features/decisions/presentation/pages/decision_detail_page.dart';
+import '../../features/decisions/presentation/pages/decision_form_page.dart';
+import '../../features/decisions/presentation/pages/evaluate_decision_page.dart';
+import '../../features/decisions/presentation/pages/history_page.dart';
+import '../../features/decisions/presentation/pages/insights_page.dart';
 import '../../features/home/presentation/pages/home_page.dart';
 import '../../features/home/presentation/pages/sandbox_page.dart';
-import '../widgets/tab_placeholder_page.dart';
 import 'app_shell.dart';
 
 /// Whether signed-out users are sent to the login page. Off only in web debug
@@ -66,47 +71,54 @@ final goRouterProvider = Provider<GoRouter>((ref) {
               builder: (context, state) => const HomePage(),
             ),
           ]),
-          // Placeholders until the decision screens are built (Phase 6).
           StatefulShellBranch(routes: [
             GoRoute(
               path: '/analyze',
-              builder: (context, state) => const TabPlaceholderPage(
-                title: 'Proactive Analysis',
-                description:
-                    'Before you commit to a decision, ask the AI to flag possible '
-                    'cognitive biases in your reasoning. It points them out; the '
-                    'choice stays yours.',
-                icon: Icons.psychology_outlined,
-              ),
+              builder: (context, state) => const AnalyzePage(),
             ),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(
               path: '/insights',
-              builder: (context, state) => const TabPlaceholderPage(
-                title: 'Cognitive Patterns',
-                description:
-                    'See which biases show up most often across your decisions, '
-                    'so you can spot your own patterns over time.',
-                icon: Icons.lightbulb_outline,
-              ),
+              builder: (context, state) => const InsightsPage(),
             ),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(
               path: '/history',
-              builder: (context, state) => const TabPlaceholderPage(
-                title: 'Decision History',
-                description:
-                    'Look back at past decisions, record how they turned out, '
-                    'and compare that with how confident you felt at the start.',
-                icon: Icons.history,
-              ),
+              builder: (context, state) => const HistoryPage(),
             ),
           ]),
         ],
       ),
-      // Full-screen pages outside the tabs (no bottom nav)
+      // Full-screen pages outside the tabs (no bottom nav).
+      // '/decisions/new' must come before '/decisions/:id', which would match it.
+      GoRoute(
+        path: '/decisions/new',
+        builder: (context, state) => const DecisionFormPage(),
+      ),
+      GoRoute(
+        path: '/decisions/:id',
+        builder: (context, state) =>
+            DecisionDetailPage(decisionId: _decisionId(state)),
+        routes: [
+          GoRoute(
+            path: 'edit',
+            builder: (context, state) =>
+                DecisionFormPage(decisionId: _decisionId(state)),
+          ),
+          GoRoute(
+            path: 'commit',
+            builder: (context, state) =>
+                CommitDecisionPage(decisionId: _decisionId(state)),
+          ),
+          GoRoute(
+            path: 'evaluate',
+            builder: (context, state) =>
+                EvaluateDecisionPage(decisionId: _decisionId(state)),
+          ),
+        ],
+      ),
       GoRoute(
         path: '/sandbox',
         builder: (context, state) => const SandboxPage(),
@@ -123,3 +135,8 @@ final goRouterProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
+
+/// The decision's local id from the URL. A malformed id becomes -1, which no
+/// decision has, so the page shows "This decision no longer exists".
+int _decisionId(GoRouterState state) =>
+    int.tryParse(state.pathParameters['id'] ?? '') ?? -1;

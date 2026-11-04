@@ -3,14 +3,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hinsight/core.dart';
 import 'package:hinsight/src/core/routing/app_router.dart';
-import 'package:hinsight/src/core/widgets/tab_placeholder_page.dart';
 import 'package:hinsight/src/features/auth/auth.dart';
 import 'package:hinsight/src/features/auth/presentation/pages/login_page.dart';
 import 'package:hinsight/src/features/auth/presentation/pages/register_page.dart';
+import 'package:hinsight/src/features/decisions/presentation/pages/analyze_page.dart';
+import 'package:hinsight/src/features/decisions/presentation/pages/decision_detail_page.dart';
+import 'package:hinsight/src/features/decisions/presentation/pages/decision_form_page.dart';
+import 'package:hinsight/src/features/decisions/presentation/pages/history_page.dart';
+import 'package:hinsight/src/features/decisions/presentation/pages/insights_page.dart';
 import 'package:hinsight/src/features/home/presentation/pages/home_page.dart';
 import 'package:hinsight/src/features/home/presentation/pages/sandbox_page.dart';
 
 import '../../helpers/fake_auth.dart';
+import '../../helpers/fake_decisions.dart';
 
 // Uses the real router from goRouterProvider and the real theme, with a fake
 // auth repository so tests choose whether the user is signed in.
@@ -23,7 +28,10 @@ void main() {
   Future<void> pumpRouter(WidgetTester tester, {required bool signedIn}) async {
     auth = FakeAuthRepository(savedUser: signedIn ? testUser : null);
     container = ProviderContainer(
-      overrides: [authRepositoryProvider.overrideWithValue(auth)],
+      overrides: [
+        authRepositoryProvider.overrideWithValue(auth),
+        ...decisionOverrides(),
+      ],
     );
     await tester.pumpWidget(UncontrolledProviderScope(
       container: container,
@@ -64,10 +72,13 @@ void main() {
 
   final signedInRoutes = <String, Type>{
     '/': HomePage,
-    '/analyze': TabPlaceholderPage,
-    '/insights': TabPlaceholderPage,
-    '/history': TabPlaceholderPage,
+    '/analyze': AnalyzePage,
+    '/insights': InsightsPage,
+    '/history': HistoryPage,
     '/sandbox': SandboxPage,
+    '/decisions/new': DecisionFormPage,
+    // Not '/decisions/new' by mistake: a real id opens the decision page.
+    '/decisions/7': DecisionDetailPage,
   };
   signedInRoutes.forEach((path, page) {
     testWidgets('$path renders $page when signed in', (tester) async {

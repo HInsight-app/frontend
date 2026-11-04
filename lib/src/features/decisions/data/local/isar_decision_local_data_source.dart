@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:isar/isar.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -98,6 +100,50 @@ class IsarDecisionLocalDataSource implements DecisionLocalDataSource {
       .sortByRequestedAtDesc()
       .watch(fireImmediately: true)
       .map((rows) => rows.map(_toInsight).toList());
+
+  @override
+  Stream<List<AiInsight>> watchInsightsOfUser(String userId) {
+    // Re-query when insights change, or decisions (a deletion hides insights).
+    final subscriptions = <StreamSubscription<void>>[];
+    late final StreamController<List<AiInsight>> controller;
+    Future<void> emit() async {
+      final insights = await _insightsOfUser(userId);
+      if (!controller.isClosed) controller.add(insights);
+    }
+
+    controller = StreamController<List<AiInsight>>(
+      onListen: () {
+        subscriptions
+          ..add(isar.isarAiInsights.watchLazy().listen((_) => emit()))
+          ..add(isar.isarDecisions.watchLazy().listen((_) => emit()));
+        emit();
+      },
+      onCancel: () async {
+        for (final s in subscriptions) {
+          await s.cancel();
+        }
+      },
+    );
+    return controller.stream;
+  }
+
+  Future<List<AiInsight>> _insightsOfUser(String userId) async {
+    final ids = await isar.isarDecisions
+        .where()
+        .userIdEqualTo(userId)
+        .filter()
+        .deletedAtIsNull()
+        .localIdProperty()
+        .findAll();
+    // anyOf() with no items matches everything, so stop here.
+    if (ids.isEmpty) return const [];
+    final rows = await isar.isarAiInsights
+        .filter()
+        .anyOf(ids, (q, int id) => q.decisionLocalIdEqualTo(id))
+        .sortByRequestedAtDesc()
+        .findAll();
+    return rows.map(_toInsight).toList();
+  }
 
   @override
   Future<List<AiInsight>> getInsights(

@@ -11,12 +11,17 @@ import 'package:hinsight/main.dart';
 import 'package:hinsight/src/features/auth/presentation/pages/login_page.dart';
 import 'package:hinsight/src/features/home/presentation/pages/home_page.dart';
 
-// Runs the real app wiring; only the device's secure storage is faked.
+import 'helpers/fake_decisions.dart';
+
+// Runs the real app wiring; only the device's secure storage is faked, and
+// the decision store is the in-memory one (main() opens Isar on phones).
 void main() {
   setUp(() => dotenv.loadFromString(envString: 'BASE_URL=http://localhost:8080'));
 
   Future<void> pumpApp(WidgetTester tester) async {
-    await tester.pumpWidget(const ProviderScope(child: MainApp()));
+    await tester.pumpWidget(
+      ProviderScope(overrides: decisionOverrides(), child: const MainApp()),
+    );
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
   }

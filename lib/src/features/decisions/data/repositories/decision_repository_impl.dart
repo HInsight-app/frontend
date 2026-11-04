@@ -67,6 +67,10 @@ class DecisionRepositoryImpl implements DecisionRepository {
   Stream<List<AiInsight>> watchInsights(int decisionLocalId) =>
       local.watchInsights(decisionLocalId);
 
+  @override
+  Stream<List<AiInsight>> watchAllInsights() =>
+      local.watchInsightsOfUser(userId);
+
   bool _isVisible(Decision d) => d.userId == userId && d.deletedAt == null;
 
   Future<Decision> _requireDecision(int localId) async {

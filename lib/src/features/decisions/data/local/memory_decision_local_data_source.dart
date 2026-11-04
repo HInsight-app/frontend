@@ -98,6 +98,15 @@ class MemoryDecisionLocalDataSource implements DecisionLocalDataSource {
       _watch(() => _insightsOf(decisionLocalId));
 
   @override
+  Stream<List<AiInsight>> watchInsightsOfUser(String userId) => _watch(() {
+        final ids = _decisionsOf(userId).map((d) => d.localId).toSet();
+        return _insights.values
+            .where((i) => ids.contains(i.decisionLocalId))
+            .toList()
+          ..sort((a, b) => b.requestedAt.compareTo(a.requestedAt));
+      });
+
+  @override
   Future<List<AiInsight>> getInsights(
     int decisionLocalId,
     TriggerContext trigger,

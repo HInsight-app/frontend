@@ -145,6 +145,31 @@ void runDecisionLocalDataSourceContract(
       expect(await store.watchInsights(id).first, hasLength(3));
     });
 
+    test('lists insights across one user\'s decisions, newest first', () async {
+      AiInsight insight(int decisionId, int minute) => AiInsight(
+            decisionLocalId: decisionId,
+            decisionServerId: 's$decisionId',
+            triggerContext: TriggerContext.preDecision,
+            status: InsightStatus.complete,
+            requestedAt: t0.add(Duration(minutes: minute)),
+          );
+      final mine = (await store.putDecision(decision('Mine'))).localId!;
+      final deleted = (await store.putDecision(
+              decision('Deleted').copyWith(deletedAt: t0)))
+          .localId!;
+      final theirs =
+          (await store.putDecision(decision('Theirs', userId: 'u2'))).localId!;
+      await store.putInsight(insight(mine, 1));
+      await store.putInsight(insight(mine, 2));
+      await store.putInsight(insight(deleted, 3));
+      await store.putInsight(insight(theirs, 4));
+
+      final listed = await store.watchInsightsOfUser('u1').first;
+      expect(listed.map((i) => i.requestedAt.minute), [32, 31]);
+      // A user with no decisions sees no insights at all.
+      expect(await store.watchInsightsOfUser('nobody').first, isEmpty);
+    });
+
     test('tags: sorted by name, hiding those waiting to be deleted', () async {
       await store.putTag(const Tag(userId: 'u1', name: 'Career'));
       await store.putTag(const Tag(userId: 'u1', name: 'Academic'));

@@ -8,6 +8,7 @@ import 'package:hinsight/src/features/auth/presentation/pages/login_page.dart';
 import 'package:hinsight/src/features/home/presentation/pages/home_page.dart';
 
 import '../../helpers/fake_auth.dart';
+import '../../helpers/fake_decisions.dart';
 
 void main() {
   late FakeAuthRepository auth;
@@ -16,7 +17,10 @@ void main() {
   Future<void> pumpLogin(WidgetTester tester) async {
     auth = FakeAuthRepository();
     final container = ProviderContainer(
-      overrides: [authRepositoryProvider.overrideWithValue(auth)],
+      overrides: [
+        authRepositoryProvider.overrideWithValue(auth),
+        ...decisionOverrides(), // The dashboard opens after login
+      ],
     );
     addTearDown(container.dispose);
     await tester.pumpWidget(UncontrolledProviderScope(

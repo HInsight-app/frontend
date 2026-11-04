@@ -13,4 +13,3 @@ export 'src/core/storage/token_storage.dart';
 // Widgets category
 export 'src/core/widgets/app_button.dart';
 export 'src/core/widgets/app_text_field.dart';
-export 'src/core/widgets/ai_insight_card.dart';

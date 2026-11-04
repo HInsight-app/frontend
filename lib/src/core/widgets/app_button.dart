@@ -75,8 +75,10 @@ class AppButton extends StatelessWidget {
                     FaIcon(icon, size: 20),
                     const SizedBox(width: 8),
                   ],
-                  // Font, size (16) and weight (bold) come from the button theme
-                  Text(text),
+                  // Font, size (16) and weight (bold) come from the button theme.
+                  // Flexible lets a long label (or large system text) wrap
+                  // instead of overflowing the button.
+                  Flexible(child: Text(text, textAlign: TextAlign.center)),
                 ],
               ),
       ),
