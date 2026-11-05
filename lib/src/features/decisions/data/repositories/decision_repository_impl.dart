@@ -152,6 +152,10 @@ class DecisionRepositoryImpl implements DecisionRepository {
       throw const DecisionException(
           "You've already committed to an option for this decision.");
     }
+    if (!d.hasEnoughOptionsToCommit) {
+      throw const DecisionException('Add at least '
+          '${Decision.minOptionsToCommit} options to compare before committing.');
+    }
     if (!d.options.any((o) => o.key == chosenOptionKey)) {
       throw const DecisionException("Choose one of this decision's options.");
     }

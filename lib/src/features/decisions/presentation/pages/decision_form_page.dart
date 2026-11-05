@@ -7,6 +7,7 @@ import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_snack_bar.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../../core/widgets/section_header.dart';
+import '../../../tags/domain/entities/tag.dart';
 import '../../decisions_providers.dart';
 import '../../domain/entities/decision.dart';
 import '../../domain/usecases/decision_usecases.dart';
@@ -166,9 +167,18 @@ class _DecisionFormPageState extends ConsumerState<DecisionFormPage> {
                 const SizedBox(height: 8),
                 _TagPicker(
                   selected: _tagIds,
-                  onToggle: (id) => setState(() {
-                    if (!_tagIds.remove(id)) _tagIds.add(id);
-                  }),
+                  // Both can run after a dialog, when the page may be gone.
+                  onToggle: (id) {
+                    if (!mounted) return;
+                    setState(() {
+                      if (!_tagIds.remove(id)) _tagIds.add(id);
+                    });
+                  },
+                  // Deleting also removes the tag from stored decisions; drop
+                  // it here too, or saving this form would put it back.
+                  onDeleted: (id) {
+                    if (mounted) setState(() => _tagIds.remove(id));
+                  },
                 ),
                 const SizedBox(height: 24),
                 ConfidenceSlider(
@@ -225,12 +235,50 @@ class _DecisionFormPageState extends ConsumerState<DecisionFormPage> {
   }
 }
 
-/// Tags as chips to tick, plus a chip to create a new one.
+/// Tags as chips to tick (long-press one to delete it), plus a chip to
+/// create a new one.
 class _TagPicker extends ConsumerWidget {
-  const _TagPicker({required this.selected, required this.onToggle});
+  const _TagPicker({
+    required this.selected,
+    required this.onToggle,
+    required this.onDeleted,
+  });
 
   final Set<int> selected;
   final ValueChanged<int> onToggle;
+  final ValueChanged<int> onDeleted;
+
+  Future<void> _deleteTag(BuildContext context, WidgetRef ref, Tag tag) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete the tag "${tag.name}"?'),
+        content: const Text(
+            'It is removed from every decision that uses it. '
+            'The decisions themselves are kept.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+    // The form may have closed while the dialog was open.
+    if (confirmed != true || !context.mounted) return;
+
+    try {
+      await ref.read(decisionRepositoryProvider).deleteTag(tag.localId!);
+      onDeleted(tag.localId!);
+    } catch (e) {
+      showAppSnackBar(messenger, e.toString(), isError: true);
+    }
+  }
 
   Future<void> _createTag(BuildContext context, WidgetRef ref) async {
     final messenger = ScaffoldMessenger.of(context);
@@ -238,7 +286,7 @@ class _TagPicker extends ConsumerWidget {
       context: context,
       builder: (context) => const _NewTagDialog(),
     );
-    if (name == null) return;
+    if (name == null || !context.mounted) return;
 
     try {
       final tag = await ref.read(decisionRepositoryProvider).createTag(name);
@@ -251,21 +299,35 @@ class _TagPicker extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tags = ref.watch(tagsProvider).valueOrNull ?? const [];
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final tag in tags)
-          FilterChip(
-            label: Text(tag.name),
-            selected: selected.contains(tag.localId),
-            onSelected: (_) => onToggle(tag.localId!),
-          ),
-        ActionChip(
-          avatar: const Icon(Icons.add, size: 16),
-          label: const Text('New tag'),
-          onPressed: () => _createTag(context, ref),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final tag in tags)
+              GestureDetector(
+                key: ValueKey(tag.localId),
+                onLongPress: () => _deleteTag(context, ref, tag),
+                child: FilterChip(
+                  label: Text(tag.name),
+                  selected: selected.contains(tag.localId),
+                  onSelected: (_) => onToggle(tag.localId!),
+                ),
+              ),
+            ActionChip(
+              avatar: const Icon(Icons.add, size: 16),
+              label: const Text('New tag'),
+              onPressed: () => _createTag(context, ref),
+            ),
+          ],
         ),
+        if (tags.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text('Long-press a tag to delete it.',
+              style: Theme.of(context).textTheme.bodySmall),
+        ],
       ],
     );
   }

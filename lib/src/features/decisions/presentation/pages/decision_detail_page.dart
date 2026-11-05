@@ -166,8 +166,7 @@ class _DecisionBody extends ConsumerWidget {
         ],
         const SectionHeader(title: 'Options'),
         if (decision.options.isEmpty)
-          Text('No options yet. Edit the decision to add some.',
-              style: textTheme.bodySmall),
+          Text('No options yet.', style: textTheme.bodySmall),
         for (final option in decision.options)
           _OptionView(
             option: option,
@@ -331,7 +330,9 @@ class _NextStep extends StatelessWidget {
     final id = decision.localId!;
     switch (decision.status) {
       case DecisionStatus.pending:
-        if (decision.options.isEmpty) return const SizedBox.shrink();
+        if (!decision.hasEnoughOptionsToCommit) {
+          return _NeedMoreOptions(decisionId: id);
+        }
         return AppButton(
           text: 'Commit to an option',
           onPressed: () => context.push('/decisions/$id/commit'),
@@ -344,6 +345,34 @@ class _NextStep extends StatelessWidget {
       case DecisionStatus.evaluated:
         return const SizedBox.shrink();
     }
+  }
+}
+
+/// Shown instead of the commit button while a pending decision has too few
+/// options to choose between.
+class _NeedMoreOptions extends StatelessWidget {
+  const _NeedMoreOptions({required this.decisionId});
+
+  final int decisionId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Add at least ${Decision.minOptionsToCommit} options to compare '
+          'before you commit to one.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: () => context.push('/decisions/$decisionId/edit'),
+          icon: const Icon(Icons.add),
+          label: const Text('Add options'),
+        ),
+      ],
+    );
   }
 }
 

@@ -180,6 +180,34 @@ void main() {
           brokenRule('already committed'));
     });
 
+    test('committing needs at least two options, saving does not', () async {
+      final none = await repo.createDecision(const DecisionDraft(title: 'Move out'));
+      final one = await repo.createDecision(const DecisionDraft(
+        title: 'Join a club',
+        options: [OptionDraft(title: 'Robotics')],
+      ));
+      expect(none.hasEnoughOptionsToCommit, isFalse);
+      expect(one.hasEnoughOptionsToCommit, isFalse);
+
+      expect(repo.commitDecision(one.localId!, chosenOptionKey: one.options.single.key),
+          brokenRule('at least 2 options'));
+      final stored = await local.getDecision(one.localId!);
+      expect(stored!.status, DecisionStatus.pending);
+      expect(stored.outcome, isNull);
+
+      // A second option makes it committable.
+      await repo.updateDecision(
+        one.localId!,
+        DecisionDraft(title: 'Join a club', options: [
+          OptionDraft(key: one.options.single.key, title: 'Robotics'),
+          const OptionDraft(title: 'Debate'),
+        ]),
+      );
+      final c = await repo.commitDecision(one.localId!,
+          chosenOptionKey: one.options.single.key);
+      expect(c.status, DecisionStatus.decided);
+    });
+
     test('evaluating needs a commit first and happens only once', () async {
       final pending = await repo.createDecision(twoOptions);
       expect(repo.evaluateDecision(pending.localId!, satisfactionAfter: 50),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_snack_bar.dart';
 import '../../../../core/widgets/app_text_field.dart';
@@ -64,6 +65,10 @@ class _CommitDecisionPageState extends ConsumerState<CommitDecisionPage> {
       appBar: AppBar(title: const Text('Commit to an option')),
       body: decision == null
           ? MissingDecision(loading: !loaded.hasValue && !loaded.hasError)
+          // The decision page offers no commit button then, but a saved link
+          // or options removed on another device can still lead here.
+          : !decision.hasEnoughOptionsToCommit
+          ? const _TooFewOptions()
           : ListView(
               padding: const EdgeInsets.all(24),
               children: [
@@ -84,7 +89,7 @@ class _CommitDecisionPageState extends ConsumerState<CommitDecisionPage> {
                         RadioListTile<String>(
                           value: option.key,
                           title: Text(option.title),
-                          subtitle: Text(_reasonCount(option)),
+                          subtitle: _ReasonSummary(option: option),
                           contentPadding: EdgeInsets.zero,
                         ),
                     ],
@@ -103,9 +108,56 @@ class _CommitDecisionPageState extends ConsumerState<CommitDecisionPage> {
             ),
     );
   }
+}
 
-  static String _reasonCount(DecisionOption option) {
+/// Explains why there is nothing to choose between yet.
+class _TooFewOptions extends StatelessWidget {
+  const _TooFewOptions();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text(
+          'Add at least ${Decision.minOptionsToCommit} options to this '
+          'decision before committing.',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyMedium,
+        ),
+      ),
+    );
+  }
+}
+
+/// How many pros and cons an option has. An option with none is flagged
+/// (without blocking the commit), since there is nothing to weigh it by.
+class _ReasonSummary extends StatelessWidget {
+  const _ReasonSummary({required this.option});
+
+  final DecisionOption option;
+
+  @override
+  Widget build(BuildContext context) {
+    if (option.pros.isEmpty && option.cons.isEmpty) {
+      return Row(
+        children: [
+          const Icon(Icons.info_outline, size: 16, color: AppColors.warning),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'No pros or cons listed',
+              style: Theme.of(context)
+                  .textTheme
+                  .bodySmall
+                  ?.copyWith(color: AppColors.warning),
+            ),
+          ),
+        ],
+      );
+    }
     String plural(int n, String word) => n == 1 ? '1 $word' : '$n ${word}s';
-    return '${plural(option.pros.length, 'pro')} · ${plural(option.cons.length, 'con')}';
+    return Text(
+        '${plural(option.pros.length, 'pro')} · ${plural(option.cons.length, 'con')}');
   }
 }

@@ -29,6 +29,14 @@ class Decision with _$Decision {
     @Default(SyncStatus.pendingCreate) SyncStatus syncStatus,
   }) = _Decision;
 
+  /// Committing means choosing between alternatives, so a decision needs at
+  /// least this many options first. Our rule, not the paper's: F2 sets no
+  /// minimum. Drafts may still be saved with fewer.
+  static const minOptionsToCommit = 2;
+
+  /// Whether there are enough options to commit to one of them.
+  bool get hasEnoughOptionsToCommit => options.length >= minOptionsToCommit;
+
   /// The option the student committed to, or null before committing.
   DecisionOption? get chosenOption {
     final key = outcome?.chosenOptionKey;

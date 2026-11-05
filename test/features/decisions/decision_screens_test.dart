@@ -7,6 +7,7 @@ import 'package:hinsight/src/features/decisions/decisions_providers.dart';
 import 'package:hinsight/src/features/decisions/domain/entities/decision.dart';
 import 'package:hinsight/src/features/decisions/domain/entities/decision_enums.dart';
 import 'package:hinsight/src/features/decisions/presentation/pages/decision_detail_page.dart';
+import 'package:hinsight/src/features/tags/domain/entities/tag.dart';
 
 import '../../helpers/fake_decisions.dart';
 
@@ -232,6 +233,91 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsNothing,
           reason: page);
     }
+  });
+
+  testWidgets('with fewer than two options the page asks for more, not a commit',
+      (tester) async {
+    final container = await pumpSignedInApp(tester);
+    final d = await _seed(
+      tester,
+      container,
+      const DecisionDraft(
+          title: 'Join a club', options: [OptionDraft(title: 'Robotics')]),
+    );
+    container.read(goRouterProvider).go('/decisions/${d.localId}');
+    await settle(tester);
+
+    expect(find.text('Commit to an option'), findsNothing);
+    expect(find.textContaining('Add at least 2 options'), findsOneWidget);
+    await _tapText(tester, 'Add options');
+    expect(find.text('Edit decision'), findsOneWidget);
+
+    // An old link to the commit page explains instead of offering a choice.
+    container.read(goRouterProvider).go('/decisions/${d.localId}/commit');
+    await settle(tester);
+    expect(find.textContaining('before committing'), findsOneWidget);
+    expect(find.text('Commit'), findsNothing);
+  });
+
+  testWidgets('the commit page flags an option without pros or cons',
+      (tester) async {
+    final container = await pumpSignedInApp(tester);
+    final d = await _seed(
+      tester,
+      container,
+      const DecisionDraft(title: 'Pick a laptop', options: [
+        OptionDraft(title: 'Light one', pros: ['Easy to carry']),
+        OptionDraft(title: 'Cheap one'),
+      ]),
+    );
+    container.read(goRouterProvider).go('/decisions/${d.localId}/commit');
+    await settle(tester);
+
+    expect(find.text('1 pro · 0 cons'), findsOneWidget);
+    expect(find.text('No pros or cons listed'), findsOneWidget);
+
+    // Only a nudge: committing to it still works.
+    await tester.tap(find.text('Cheap one'));
+    await tester.pump();
+    await _tapText(tester, 'Commit');
+    expect(find.text('Decided'), findsOneWidget);
+  });
+
+  testWidgets('long-pressing a tag asks first, then deletes it everywhere',
+      (tester) async {
+    final container = await pumpSignedInApp(tester);
+    final repo = container.read(decisionRepositoryProvider);
+    final d = (await tester.runAsync(() async {
+      final academic = await repo.createTag('Academic');
+      await repo.createTag('Career');
+      return repo.createDecision(_elective.copyWith(
+          tagLocalIds: [academic.localId!]));
+    }))!;
+    container.read(goRouterProvider).go('/decisions/${d.localId}/edit');
+    await settle(tester);
+    expect(find.text('Long-press a tag to delete it.'), findsOneWidget);
+
+    // Cancelling keeps it.
+    await tester.longPress(find.widgetWithText(FilterChip, 'Academic'));
+    await settle(tester);
+    expect(find.text('Delete the tag "Academic"?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await settle(tester);
+    expect(find.widgetWithText(FilterChip, 'Academic'), findsOneWidget);
+
+    await tester.longPress(find.widgetWithText(FilterChip, 'Academic'));
+    await settle(tester);
+    await tester.tap(find.widgetWithText(TextButton, 'Delete'));
+    await settle(tester);
+    expect(find.widgetWithText(FilterChip, 'Academic'), findsNothing);
+    expect(find.widgetWithText(FilterChip, 'Career'), findsOneWidget);
+
+    // Saving the open form must not put the deleted tag back.
+    await _tapText(tester, 'Save changes');
+    final stored = await tester.runAsync(() => repo.watchDecision(d.localId!).first);
+    expect(stored!.tagLocalIds, isEmpty);
+    expect(await tester.runAsync(() => repo.watchTags().first),
+        [isA<Tag>().having((t) => t.name, 'name', 'Career')]);
   });
 
   testWidgets('deleting a decision asks first, then removes it',
