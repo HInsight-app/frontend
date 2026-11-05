@@ -65,10 +65,6 @@ class _CommitDecisionPageState extends ConsumerState<CommitDecisionPage> {
       appBar: AppBar(title: const Text('Commit to an option')),
       body: decision == null
           ? MissingDecision(loading: !loaded.hasValue && !loaded.hasError)
-          // The decision page offers no commit button then, but a saved link
-          // or options removed on another device can still lead here.
-          : !decision.hasEnoughOptionsToCommit
-          ? const _TooFewOptions()
           : ListView(
               padding: const EdgeInsets.all(24),
               children: [
@@ -106,26 +102,6 @@ class _CommitDecisionPageState extends ConsumerState<CommitDecisionPage> {
                 AppButton(text: 'Commit', isLoading: _saving, onPressed: _commit),
               ],
             ),
-    );
-  }
-}
-
-/// Explains why there is nothing to choose between yet.
-class _TooFewOptions extends StatelessWidget {
-  const _TooFewOptions();
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Text(
-          'Add at least ${Decision.minOptionsToCommit} options to this '
-          'decision before committing.',
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodyMedium,
-        ),
-      ),
     );
   }
 }

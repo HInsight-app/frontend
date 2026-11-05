@@ -252,11 +252,16 @@ void main() {
     await _tapText(tester, 'Add options');
     expect(find.text('Edit decision'), findsOneWidget);
 
-    // An old link to the commit page explains instead of offering a choice.
+    // Reaching the commit page anyway (a saved link): the commit is refused.
     container.read(goRouterProvider).go('/decisions/${d.localId}/commit');
     await settle(tester);
-    expect(find.textContaining('before committing'), findsOneWidget);
-    expect(find.text('Commit'), findsNothing);
+    await tester.tap(find.text('Robotics'));
+    await tester.pump();
+    await _tapText(tester, 'Commit');
+    expect(find.textContaining('Add at least 2 options'), findsOneWidget);
+    final stored = await tester.runAsync(
+        () => container.read(decisionRepositoryProvider).watchDecision(d.localId!).first);
+    expect(stored!.status, DecisionStatus.pending);
   });
 
   testWidgets('the commit page flags an option without pros or cons',

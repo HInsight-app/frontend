@@ -7,13 +7,12 @@ import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_snack_bar.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../../../core/widgets/section_header.dart';
-import '../../../tags/domain/entities/tag.dart';
 import '../../decisions_providers.dart';
 import '../../domain/entities/decision.dart';
 import '../../domain/usecases/decision_usecases.dart';
-import '../decision_providers.dart';
 import '../widgets/confidence_slider.dart';
 import '../widgets/option_editor.dart';
+import '../widgets/tag_picker.dart';
 
 /// Creates a decision, or edits one that hasn't been committed yet
 /// (paper III-F steps 1 and 2: the decision, then its options).
@@ -165,20 +164,14 @@ class _DecisionFormPageState extends ConsumerState<DecisionFormPage> {
                 const SizedBox(height: 24),
                 Text('Tags', style: textTheme.titleSmall),
                 const SizedBox(height: 8),
-                _TagPicker(
+                TagPicker(
                   selected: _tagIds,
-                  // Both can run after a dialog, when the page may be gone.
-                  onToggle: (id) {
-                    if (!mounted) return;
-                    setState(() {
-                      if (!_tagIds.remove(id)) _tagIds.add(id);
-                    });
-                  },
+                  onToggle: (id) => setState(() {
+                    if (!_tagIds.remove(id)) _tagIds.add(id);
+                  }),
                   // Deleting also removes the tag from stored decisions; drop
                   // it here too, or saving this form would put it back.
-                  onDeleted: (id) {
-                    if (mounted) setState(() => _tagIds.remove(id));
-                  },
+                  onDeleted: (id) => setState(() => _tagIds.remove(id)),
                 ),
                 const SizedBox(height: 24),
                 ConfidenceSlider(
@@ -231,146 +224,6 @@ class _DecisionFormPageState extends ConsumerState<DecisionFormPage> {
                 ),
               ],
             ),
-    );
-  }
-}
-
-/// Tags as chips to tick (long-press one to delete it), plus a chip to
-/// create a new one.
-class _TagPicker extends ConsumerWidget {
-  const _TagPicker({
-    required this.selected,
-    required this.onToggle,
-    required this.onDeleted,
-  });
-
-  final Set<int> selected;
-  final ValueChanged<int> onToggle;
-  final ValueChanged<int> onDeleted;
-
-  Future<void> _deleteTag(BuildContext context, WidgetRef ref, Tag tag) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Delete the tag "${tag.name}"?'),
-        content: const Text(
-            'It is removed from every decision that uses it. '
-            'The decisions themselves are kept.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-    // The form may have closed while the dialog was open.
-    if (confirmed != true || !context.mounted) return;
-
-    try {
-      await ref.read(decisionRepositoryProvider).deleteTag(tag.localId!);
-      onDeleted(tag.localId!);
-    } catch (e) {
-      showAppSnackBar(messenger, e.toString(), isError: true);
-    }
-  }
-
-  Future<void> _createTag(BuildContext context, WidgetRef ref) async {
-    final messenger = ScaffoldMessenger.of(context);
-    final name = await showDialog<String>(
-      context: context,
-      builder: (context) => const _NewTagDialog(),
-    );
-    if (name == null || !context.mounted) return;
-
-    try {
-      final tag = await ref.read(decisionRepositoryProvider).createTag(name);
-      onToggle(tag.localId!);
-    } catch (e) {
-      showAppSnackBar(messenger, e.toString(), isError: true);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final tags = ref.watch(tagsProvider).valueOrNull ?? const [];
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final tag in tags)
-              GestureDetector(
-                key: ValueKey(tag.localId),
-                onLongPress: () => _deleteTag(context, ref, tag),
-                child: FilterChip(
-                  label: Text(tag.name),
-                  selected: selected.contains(tag.localId),
-                  onSelected: (_) => onToggle(tag.localId!),
-                ),
-              ),
-            ActionChip(
-              avatar: const Icon(Icons.add, size: 16),
-              label: const Text('New tag'),
-              onPressed: () => _createTag(context, ref),
-            ),
-          ],
-        ),
-        if (tags.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Text('Long-press a tag to delete it.',
-              style: Theme.of(context).textTheme.bodySmall),
-        ],
-      ],
-    );
-  }
-}
-
-/// Asks for a tag name. Owns its text controller, so it is disposed only
-/// after the dialog has finished closing.
-class _NewTagDialog extends StatefulWidget {
-  const _NewTagDialog();
-
-  @override
-  State<_NewTagDialog> createState() => _NewTagDialogState();
-}
-
-class _NewTagDialogState extends State<_NewTagDialog> {
-  final _name = TextEditingController();
-
-  @override
-  void dispose() {
-    _name.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('New tag'),
-      content: TextField(
-        controller: _name,
-        autofocus: true,
-        decoration: const InputDecoration(hintText: 'e.g. Academic'),
-        onSubmitted: (value) => Navigator.pop(context, value),
-      ),
-      actions: [
-        TextButton(
-          onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel'),
-        ),
-        TextButton(
-          onPressed: () => Navigator.pop(context, _name.text),
-          child: const Text('Add'),
-        ),
-      ],
     );
   }
 }
