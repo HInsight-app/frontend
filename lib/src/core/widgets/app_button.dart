@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+import '../theme/app_theme.dart';
+
 enum ButtonType { primary, secondary, outline }
 
 class AppButton extends StatelessWidget {
@@ -46,14 +48,14 @@ class AppButton extends StatelessWidget {
     return SizedBox(
       width:
           double.infinity, // Buttons stretch to fill their container by default
-      height: 52,
+      height: AppTheme.buttonHeight,
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
           backgroundColor: bgColor,
           foregroundColor: fgColor,
           elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(AppTheme.controlRadius),
             side: border,
           ),
         ),

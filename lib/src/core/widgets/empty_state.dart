@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../constants/app_sizes.dart';
+
 /// What a list shows when it has nothing in it yet, with an optional action.
 class EmptyState extends StatelessWidget {
   const EmptyState({
@@ -25,7 +27,7 @@ class EmptyState extends StatelessWidget {
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: colors.surfaceContainer,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppSizes.borderRadius),
         border: Border.all(color: colors.outline),
       ),
       child: Column(

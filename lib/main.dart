@@ -1,14 +1,15 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:hinsight/core.dart';
+
 import 'src/core/routing/app_router.dart';
 import 'src/features/decisions/data/local/open_local_data_source.dart';
 import 'src/features/decisions/decisions_providers.dart';
 import 'src/features/decisions/presentation/sync_controller.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

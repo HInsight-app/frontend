@@ -57,7 +57,9 @@ class _DecisionFormPageState extends ConsumerState<DecisionFormPage> {
       return;
     }
     // The starting empty options are on screen until this rebuild.
-    _options.forEach(disposeAfterFrame);
+    for (final o in _options) {
+      disposeAfterFrame(o.dispose);
+    }
     setState(() {
       _title.text = d.title;
       _context.text = d.context ?? '';
@@ -208,8 +210,8 @@ class _DecisionFormPageState extends ConsumerState<DecisionFormPage> {
                     number: i + 1,
                     fields: _options[i],
                     onChanged: () => setState(() {}),
-                    onRemove: () =>
-                        setState(() => disposeAfterFrame(_options.removeAt(i))),
+                    onRemove: () => setState(
+                        () => disposeAfterFrame(_options.removeAt(i).dispose)),
                   ),
                 OutlinedButton.icon(
                   onPressed: () => setState(() => _options.add(OptionFields())),

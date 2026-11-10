@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../../core/constants/app_sizes.dart';
+
 /// Explains what the AI checks are, and aren't (paper I-C: the system only
 /// flags biases; it doesn't decide or recommend).
 class AiNotice extends StatelessWidget {
@@ -14,7 +16,7 @@ class AiNotice extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.surfaceContainer,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(AppSizes.borderRadius),
         border: Border.all(color: colors.outline),
       ),
       child: Row(

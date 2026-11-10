@@ -4,13 +4,10 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/widgets/app_text_field.dart';
 import '../../domain/entities/decision.dart';
 
-/// Disposes [disposable] once the current frame is done, so a text field
-/// that is about to be removed never uses a disposed controller.
-void disposeAfterFrame(Object disposable) {
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    if (disposable is OptionFields) disposable.dispose();
-    if (disposable is TextEditingController) disposable.dispose();
-  });
+/// Runs [dispose] once the current frame is done, so a text field that is
+/// about to be removed never uses a disposed controller.
+void disposeAfterFrame(VoidCallback dispose) {
+  WidgetsBinding.instance.addPostFrameCallback((_) => dispose());
 }
 
 /// The text fields behind one option in the decision form.
@@ -181,7 +178,7 @@ class _ItemList extends StatelessWidget {
                   tooltip: 'Remove',
                   icon: const Icon(Icons.close, size: 18),
                   onPressed: () {
-                    disposeAfterFrame(items.removeAt(i));
+                    disposeAfterFrame(items.removeAt(i).dispose);
                     onChanged();
                   },
                 ),

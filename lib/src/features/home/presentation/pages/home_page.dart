@@ -25,7 +25,8 @@ class HomePage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    final name = ref.watch(authControllerProvider).valueOrNull?.displayName;
+    final name = ref.watch(
+        authControllerProvider.select((s) => s.valueOrNull?.displayName));
     final decisions = ref.watch(allDecisionsProvider).valueOrNull;
     final insights = (ref.watch(allInsightsProvider).valueOrNull ?? const [])
         .where((i) => i.status == InsightStatus.complete)

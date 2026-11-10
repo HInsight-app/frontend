@@ -11,7 +11,9 @@ class AppTheme {
   static const fontFamily = 'PlusJakartaSans';
 
   // Radius for buttons and text fields. Cards use AppSizes.borderRadius.
-  static const _controlRadius = 12.0;
+  static const controlRadius = 12.0;
+
+  static const buttonHeight = 52.0;
 
   // --- 1. COLOR SCHEME ---
   // Maps the style guide (AppColors) onto Material's colour slots, so built-in
@@ -89,14 +91,14 @@ class AppTheme {
   // --- 3. DARK THEME DEFINITION ---
   static ThemeData get darkTheme {
     final controlShape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(_controlRadius),
+      borderRadius: BorderRadius.circular(controlRadius),
     );
     final buttonText = _style(16, FontWeight.w700);
-    const buttonMinimumSize = Size(64, 52);
+    const buttonMinimumSize = Size(64, buttonHeight);
 
     OutlineInputBorder inputBorder(Color color, [double width = 1]) {
       return OutlineInputBorder(
-        borderRadius: BorderRadius.circular(_controlRadius),
+        borderRadius: BorderRadius.circular(controlRadius),
         borderSide: BorderSide(color: color, width: width),
       );
     }
