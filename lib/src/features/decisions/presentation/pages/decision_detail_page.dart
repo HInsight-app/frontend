@@ -7,6 +7,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/utils/date_format.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_snack_bar.dart';
+import '../../../../core/widgets/confirm_delete.dart';
 import '../../../../core/widgets/pill.dart';
 import '../../../../core/widgets/section_header.dart';
 import '../../decisions_providers.dart';
@@ -18,6 +19,7 @@ import '../decision_labels.dart';
 import '../decision_providers.dart';
 import '../widgets/ai_notice.dart';
 import '../widgets/insight_card.dart';
+import '../widgets/missing_decision.dart';
 
 /// One decision and its next step in the paper's flow (III-F): check for
 /// biases and commit while pending, evaluate once decided, then look back.
@@ -27,25 +29,12 @@ class DecisionDetailPage extends ConsumerWidget {
   final int decisionId;
 
   Future<void> _delete(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete this decision?'),
-        content: const Text(
-            'Its options, evaluation and AI insights are deleted too.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    final confirmed = await confirmDelete(
+      context,
+      title: 'Delete this decision?',
+      message: 'Its options, evaluation and AI insights are deleted too.',
     );
-    if (confirmed != true || !context.mounted) return;
+    if (!confirmed || !context.mounted) return;
 
     final messenger = ScaffoldMessenger.of(context);
     await DeleteDecisionUseCase(ref.read(decisionRepositoryProvider))
@@ -80,13 +69,10 @@ class DecisionDetailPage extends ConsumerWidget {
         ],
       ),
       body: decision.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const MissingDecision(loading: true),
         error: (e, _) => Center(child: Text('$e')),
         data: (d) => d == null
-            ? Center(
-                child: Text('This decision no longer exists.',
-                    style: Theme.of(context).textTheme.bodyMedium),
-              )
+            ? const MissingDecision(loading: false)
             : _DecisionBody(decision: d),
       ),
     );

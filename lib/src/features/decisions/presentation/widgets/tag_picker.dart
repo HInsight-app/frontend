@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/widgets/app_snack_bar.dart';
+import '../../../../core/widgets/confirm_delete.dart';
 import '../../../tags/domain/entities/tag.dart';
 import '../../decisions_providers.dart';
 import '../decision_providers.dart';
@@ -23,27 +24,14 @@ class TagPicker extends ConsumerWidget {
 
   Future<void> _deleteTag(BuildContext context, WidgetRef ref, Tag tag) async {
     final messenger = ScaffoldMessenger.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Delete the tag "${tag.name}"?'),
-        content: const Text(
-            'It is removed from every decision that uses it. '
-            'The decisions themselves are kept.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    final confirmed = await confirmDelete(
+      context,
+      title: 'Delete the tag "${tag.name}"?',
+      message: 'It is removed from every decision that uses it. '
+          'The decisions themselves are kept.',
     );
     // The form may have closed while the dialog was open.
-    if (confirmed != true || !context.mounted) return;
+    if (!confirmed || !context.mounted) return;
 
     try {
       await ref.read(decisionRepositoryProvider).deleteTag(tag.localId!);
