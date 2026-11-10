@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +8,7 @@ import 'package:hinsight/src/core/network/auth_interceptor.dart';
 import 'package:hinsight/src/features/auth/auth.dart';
 
 import '../../helpers/fake_auth.dart';
+import '../../helpers/fake_http_adapter.dart';
 
 void main() {
   late ProviderContainer container;
@@ -49,29 +48,10 @@ void main() {
     addTearDown(signedIn.dispose);
     expect(await signedIn.read(authControllerProvider.future), testUser);
 
-    final dio = signedIn.read(dioProvider)..httpClientAdapter = _Always401();
+    final dio = signedIn.read(dioProvider)..httpClientAdapter = FakeHttpAdapter(
+        status: 401, body: {'error': 'invalid or expired session'});
     await expectLater(dio.get('/decisions'), throwsA(isA<DioException>()));
 
     expect(signedIn.read(authControllerProvider).value, isNull);
   });
-}
-
-class _Always401 implements HttpClientAdapter {
-  @override
-  Future<ResponseBody> fetch(
-    RequestOptions options,
-    Stream<Uint8List>? requestStream,
-    Future<void>? cancelFuture,
-  ) async {
-    return ResponseBody.fromString(
-      '{"error":"invalid or expired session"}',
-      401,
-      headers: {
-        Headers.contentTypeHeader: [Headers.jsonContentType],
-      },
-    );
-  }
-
-  @override
-  void close({bool force = false}) {}
 }

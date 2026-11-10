@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:dio/dio.dart';
 // flutter_test has its own Evaluation (an accessibility check result).
 import 'package:flutter_test/flutter_test.dart' hide Evaluation;
@@ -13,40 +10,14 @@ import 'package:hinsight/src/features/decisions/domain/entities/decision_enums.d
 import 'package:hinsight/src/features/decisions/domain/entities/evaluation.dart';
 import 'package:hinsight/src/features/tags/domain/entities/tag.dart';
 
-/// Answers with [status] and [body] instead of using the network, and keeps
-/// the request so tests can check what the app sent.
-class _Server implements HttpClientAdapter {
-  int status = 200;
-  Object? body = const {};
-  bool unreachable = false;
-  late RequestOptions request;
-
-  @override
-  Future<ResponseBody> fetch(
-    RequestOptions options,
-    Stream<Uint8List>? requestStream,
-    Future<void>? cancelFuture,
-  ) async {
-    request = options;
-    if (unreachable) {
-      throw DioException.connectionError(
-          requestOptions: options, reason: 'No route to host');
-    }
-    return ResponseBody.fromString(jsonEncode(body), status, headers: {
-      Headers.contentTypeHeader: [Headers.jsonContentType],
-    });
-  }
-
-  @override
-  void close({bool force = false}) {}
-}
+import '../../helpers/fake_http_adapter.dart';
 
 void main() {
-  late _Server server;
+  late FakeHttpAdapter server;
   late DioDecisionRemoteDataSource api;
 
   setUp(() {
-    server = _Server();
+    server = FakeHttpAdapter();
     api = DioDecisionRemoteDataSource(
         Dio(BaseOptions(baseUrl: 'https://api.test'))..httpClientAdapter = server);
   });
@@ -88,11 +59,11 @@ void main() {
 
     final ids = await api.createDecision(decision, tagServerIds: ['t-1']);
 
-    expect(server.request.method, 'POST');
-    expect(server.request.path, '/decisions');
-    expect(server.request.headers['Idempotency-Key'],
+    expect(server.lastRequest.method, 'POST');
+    expect(server.lastRequest.path, '/decisions');
+    expect(server.lastRequest.headers['Idempotency-Key'],
         'decision-7-${created.microsecondsSinceEpoch}');
-    expect(server.request.data, {
+    expect(server.lastRequest.data, {
       'title': 'Pick an elective',
       'context': 'Two courses fit',
       'confidence_before': 60,
@@ -140,8 +111,8 @@ void main() {
 
     final ids = await api.updateDecision(decision, tagServerIds: const []);
 
-    expect(server.request.method, 'PUT');
-    expect(server.request.path, '/decisions/d-1');
+    expect(server.lastRequest.method, 'PUT');
+    expect(server.lastRequest.path, '/decisions/d-1');
     expect(ids.optionIds, {'k-2': 'o-9'});
   });
 
@@ -207,7 +178,7 @@ void main() {
           .having((e) => e.message, 'message', 'decision not found')),
     );
 
-    server.unreachable = true;
+    server.failure = DioExceptionType.connectionError;
     await expectLater(
       api.deleteTag('t-1'),
       throwsA(isA<ApiException>()
@@ -219,9 +190,9 @@ void main() {
       () async {
     await api.deleteDecision('d-1', updatedAt: created);
 
-    expect(server.request.method, 'DELETE');
-    expect(server.request.path, '/decisions/d-1');
-    expect(server.request.queryParameters,
+    expect(server.lastRequest.method, 'DELETE');
+    expect(server.lastRequest.path, '/decisions/d-1');
+    expect(server.lastRequest.queryParameters,
         {'updated_at': '2026-11-04T03:00:00.000Z'});
   });
 
@@ -239,8 +210,8 @@ void main() {
           hindsightNotes: 'Good',
           createdAt: created),
     );
-    expect(server.request.path, '/decisions/d-1/evaluations');
-    expect(server.request.data, {
+    expect(server.lastRequest.path, '/decisions/d-1/evaluations');
+    expect(server.lastRequest.data, {
       'satisfaction_after': 80,
       'confidence_after': 70,
       'hindsight_notes': 'Good',
@@ -251,7 +222,8 @@ void main() {
     server.body = {'error': 'tag exists', 'id': 't-1'};
     final tagId =
         await api.createTag(const Tag(userId: 'u1', name: 'Academic', colorHex: '#8771FF'));
-    expect(server.request.data, {'name': 'Academic', 'color_hex': '#8771FF'});
+    expect(server.lastRequest.data,
+        {'name': 'Academic', 'color_hex': '#8771FF'});
     expect(tagId, 't-1');
   });
 
@@ -274,8 +246,8 @@ void main() {
 
     final insight = await api.requestInsight('d-1', TriggerContext.postEvaluation);
 
-    expect(server.request.path, '/decisions/d-1/insights');
-    expect(server.request.data, {'trigger_context': 'post_evaluation'});
+    expect(server.lastRequest.path, '/decisions/d-1/insights');
+    expect(server.lastRequest.data, {'trigger_context': 'post_evaluation'});
     expect(insight.primaryBias, BiasType.lossAversion);
     expect(insight.emotionalTone, isNull);
     expect(insight.riskLevel, RiskLevel.high);

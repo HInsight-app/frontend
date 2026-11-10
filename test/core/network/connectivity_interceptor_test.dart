@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:dio/dio.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,36 +7,15 @@ import 'package:hinsight/core.dart';
 import 'package:hinsight/src/core/network/connection_status.dart';
 import 'package:hinsight/src/core/network/connectivity_interceptor.dart';
 
-/// Answers with [status], or fails like a phone with no connection.
-class _Server implements HttpClientAdapter {
-  int status = 200;
-  DioExceptionType? failure;
-
-  @override
-  Future<ResponseBody> fetch(
-    RequestOptions options,
-    Stream<Uint8List>? requestStream,
-    Future<void>? cancelFuture,
-  ) async {
-    if (failure != null) {
-      throw DioException(requestOptions: options, type: failure!);
-    }
-    return ResponseBody.fromString('{}', status, headers: {
-      Headers.contentTypeHeader: [Headers.jsonContentType],
-    });
-  }
-
-  @override
-  void close({bool force = false}) {}
-}
+import '../../helpers/fake_http_adapter.dart';
 
 void main() {
-  late _Server server;
+  late FakeHttpAdapter server;
   late List<String> reports;
   late Dio dio;
 
   setUp(() {
-    server = _Server();
+    server = FakeHttpAdapter();
     reports = [];
     dio = Dio(BaseOptions(baseUrl: 'https://api.test'))
       ..httpClientAdapter = server
