@@ -10,14 +10,6 @@ import '../repositories/sync_repository.dart';
 // feature's use cases. They are thin today; rules live in the repository so
 // every caller gets them.
 
-class WatchDecisionsUseCase {
-  WatchDecisionsUseCase(this.repository);
-  final DecisionRepository repository;
-
-  Stream<List<Decision>> execute({DecisionStatus? status, String? search}) =>
-      repository.watchDecisions(status: status, search: search);
-}
-
 class CreateDecisionUseCase {
   CreateDecisionUseCase(this.repository);
   final DecisionRepository repository;

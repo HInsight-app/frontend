@@ -119,7 +119,6 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: '/sandbox',
         builder: (context, state) => const SandboxPage(),
       ),
-      // Auth and Profile routes here later
       GoRoute(
         path: '/login',
         builder: (context, state) => const LoginPage(),

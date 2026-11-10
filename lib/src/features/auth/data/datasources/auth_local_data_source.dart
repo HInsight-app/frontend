@@ -5,7 +5,6 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../../../../core/storage/token_storage.dart';
 import '../models/auth_response.dart';
 
-// The Interface (The Menu)
 abstract class AuthLocalDataSource {
   /// Saves the session. With [persist] it is also written to the device.
   Future<void> saveSession(AuthResponse session, {required bool persist});
@@ -16,7 +15,6 @@ abstract class AuthLocalDataSource {
   Future<void> clearSession();
 }
 
-// The Implementation (The Vault Manager)
 class AuthLocalDataSourceImpl implements AuthLocalDataSource {
   final TokenStorage tokenStorage;
   final FlutterSecureStorage secureStorage;

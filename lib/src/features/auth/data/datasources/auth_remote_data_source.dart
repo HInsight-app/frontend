@@ -1,14 +1,12 @@
 import 'package:dio/dio.dart';
 import '../models/auth_response.dart';
 
-// The Interface
 abstract class AuthRemoteDataSource {
   Future<AuthResponse> login(String email, String password, bool remember);
   Future<AuthResponse> register(
       String displayName, String email, String password, bool remember);
 }
 
-// The Implementation
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   final Dio dio;
 
@@ -26,7 +24,6 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       },
     );
 
-    // Converts the raw JSON into your Freezed object
     return AuthResponse.fromJson(response.data);
   }
 

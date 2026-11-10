@@ -12,7 +12,6 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  // Remove '#' from all url
   usePathUrlStrategy();
   addFontLicenses();
 
@@ -20,7 +19,6 @@ Future<void> main() async {
   // Isar on phones; in memory on the web preview, where Isar can't run
   final decisionStore = await openDecisionLocalDataSource();
 
-  // ProviderScope is mandatory for Riverpod
   runApp(ProviderScope(
     overrides: [
       decisionLocalDataSourceProvider.overrideWithValue(decisionStore),
@@ -44,7 +42,6 @@ class MainApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Watch your GoRouter provider
     final router = ref.watch(goRouterProvider);
     // Keeps the background sync running for as long as the app is open
     // (listening, unlike watching, doesn't rebuild the app on every change).

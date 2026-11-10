@@ -4,9 +4,6 @@ import '../constants/app_sizes.dart';
 import 'app_colors.dart';
 
 class AppTheme {
-  // The private constructor `AppTheme._()` prevents anyone from accidentally
-  // creating an instance of this class (e.g., `var theme = AppTheme()`).
-  // We only want to access the static properties directly.
   AppTheme._();
 
   /// Must match the `family:` declared under `fonts:` in pubspec.yaml. The font

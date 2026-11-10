@@ -30,12 +30,11 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
     super.dispose();
   }
 
-  // Pop Up ERROR message
   void _showErrorPopup(String message) {
     showAppSnackBar(ScaffoldMessenger.of(context), message, isError: true);
   }
 
-  // Validation Bouncer. These rules are stricter than the backend's (name 2+,
+  // These rules are stricter than the backend's (name 2+,
   // password 8+), so students never see the backend's raw validation errors.
   Future<void> _handleRegistration() async {
     final username = _nameController.text.trim();
@@ -83,7 +82,6 @@ class _RegisterPageState extends ConsumerState<RegisterPage> {
       // ApiException carries the backend's message
       showAppSnackBar(messenger, e.toString(), isError: true);
     } finally {
-      // Stop loading spinner
       if (mounted) {
         setState(() {
           _isLoading = false;

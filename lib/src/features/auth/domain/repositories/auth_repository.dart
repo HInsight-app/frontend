@@ -1,7 +1,5 @@
 import '../entities/auth_user.dart';
 
-// The Interface (Contract)
-// This strictly defines what the repository MUST be able to do.
 // Failed API calls throw an ApiException with a message safe to show the user.
 abstract class AuthRepository {
   /// Signs in and saves the session. With [remember] it survives an app

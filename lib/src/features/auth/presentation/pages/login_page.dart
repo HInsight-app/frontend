@@ -19,7 +19,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
 
-  // State variable for the checkbox
   bool _rememberMe = false;
 
   bool _isLoginLoading = false;
@@ -60,7 +59,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       // ApiException carries the backend's message, e.g. "invalid credentials"
       showAppSnackBar(messenger, e.toString(), isError: true);
     } finally {
-      // Stop loading spinner
       if (mounted) {
         setState(() {
           _isLoginLoading = false;
@@ -71,7 +69,6 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Scaffold automatically pulls the dark background from AppTheme
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
@@ -135,7 +132,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               AppButton(
                 type: ButtonType.primary,
                 text: 'Login',
-                isLoading: _isLoginLoading, // Hooks up the loading spinner
+                isLoading: _isLoginLoading,
                 onPressed: _login,
               ),
 
