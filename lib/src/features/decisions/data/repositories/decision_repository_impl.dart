@@ -293,10 +293,7 @@ class DecisionRepositoryImpl implements DecisionRepository {
           isConnectionProblem: report.offline);
     }
 
-    final d = await local.getDecision(localId);
-    if (d == null || !_isVisible(d)) {
-      throw const DecisionException('This decision no longer exists.');
-    }
+    final d = await _requireDecision(localId);
     final evaluation = trigger == TriggerContext.postEvaluation
         ? await local.getEvaluation(localId)
         : null;

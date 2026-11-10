@@ -10,6 +10,7 @@ import '../../domain/entities/ai_insight.dart';
 import '../../domain/entities/decision.dart';
 import '../../domain/entities/decision_enums.dart';
 import '../../domain/entities/evaluation.dart';
+import '../remote/api_json.dart';
 import 'decision_local_data_source.dart';
 import 'isar_ai_insight.dart';
 import 'isar_decision.dart';
@@ -102,39 +103,14 @@ class IsarDecisionLocalDataSource implements DecisionLocalDataSource {
       .map((rows) => rows.map(_toInsight).toList());
 
   @override
-  Stream<List<AiInsight>> watchInsightsOfUser(String userId) {
-    // Re-query when insights change, or decisions (a deletion hides insights).
-    final subscriptions = <StreamSubscription<void>>[];
-    late final StreamController<List<AiInsight>> controller;
-    Future<void> emit() async {
-      final insights = await _insightsOfUser(userId);
-      if (!controller.isClosed) controller.add(insights);
-    }
-
-    controller = StreamController<List<AiInsight>>(
-      onListen: () {
-        subscriptions
-          ..add(isar.isarAiInsights.watchLazy().listen((_) => emit()))
-          ..add(isar.isarDecisions.watchLazy().listen((_) => emit()));
-        emit();
-      },
-      onCancel: () async {
-        for (final s in subscriptions) {
-          await s.cancel();
-        }
-      },
-    );
-    return controller.stream;
-  }
+  Stream<List<AiInsight>> watchInsightsOfUser(String userId) => _requery(
+        // Insights changed, or decisions (a deletion hides their insights).
+        () => [isar.isarAiInsights.watchLazy(), isar.isarDecisions.watchLazy()],
+        () => _insightsOfUser(userId),
+      );
 
   Future<List<AiInsight>> _insightsOfUser(String userId) async {
-    final ids = await isar.isarDecisions
-        .where()
-        .userIdEqualTo(userId)
-        .filter()
-        .deletedAtIsNull()
-        .localIdProperty()
-        .findAll();
+    final ids = await _visibleDecisionIds(userId);
     // anyOf() with no items matches everything, so stop here.
     if (ids.isEmpty) return const [];
     final rows = await isar.isarAiInsights
@@ -222,31 +198,15 @@ class IsarDecisionLocalDataSource implements DecisionLocalDataSource {
   }
 
   @override
-  Stream<int> watchUnsyncedCount(String userId) {
-    // Re-count when any of the three collections changes.
-    final subscriptions = <StreamSubscription<void>>[];
-    late final StreamController<int> controller;
-    Future<void> emit() async {
-      final count = await _unsyncedCount(userId);
-      if (!controller.isClosed) controller.add(count);
-    }
-
-    controller = StreamController<int>(
-      onListen: () {
-        subscriptions
-          ..add(isar.isarDecisions.watchLazy().listen((_) => emit()))
-          ..add(isar.isarEvaluations.watchLazy().listen((_) => emit()))
-          ..add(isar.isarTags.watchLazy().listen((_) => emit()));
-        emit();
-      },
-      onCancel: () async {
-        for (final s in subscriptions) {
-          await s.cancel();
-        }
-      },
-    );
-    return controller.stream;
-  }
+  Stream<int> watchUnsyncedCount(String userId) => _requery(
+        // Re-count when any of the three collections changes.
+        () => [
+          isar.isarDecisions.watchLazy(),
+          isar.isarEvaluations.watchLazy(),
+          isar.isarTags.watchLazy(),
+        ],
+        () => _unsyncedCount(userId),
+      );
 
   Future<int> _unsyncedCount(String userId) async {
     final decisions = await isar.isarDecisions
@@ -263,14 +223,7 @@ class IsarDecisionLocalDataSource implements DecisionLocalDataSource {
         .not()
         .syncStatusEqualTo(SyncStatus.synced)
         .count();
-    final visible = (await isar.isarDecisions
-            .where()
-            .userIdEqualTo(userId)
-            .filter()
-            .deletedAtIsNull()
-            .localIdProperty()
-            .findAll())
-        .toSet();
+    final visible = (await _visibleDecisionIds(userId)).toSet();
     final evaluations = (await isar.isarEvaluations
             .filter()
             .not()
@@ -282,16 +235,46 @@ class IsarDecisionLocalDataSource implements DecisionLocalDataSource {
     return decisions + tags + evaluations;
   }
 
+  /// Local ids of the user's decisions that aren't soft-deleted.
+  Future<List<int>> _visibleDecisionIds(String userId) => isar.isarDecisions
+      .where()
+      .userIdEqualTo(userId)
+      .filter()
+      .deletedAtIsNull()
+      .localIdProperty()
+      .findAll();
+
+  /// [query]'s result, run again whenever one of the triggers fires. The
+  /// triggers are created only on listen: Isar starts watching when
+  /// watchLazy() is called.
+  Stream<T> _requery<T>(
+    List<Stream<void>> Function() triggers,
+    Future<T> Function() query,
+  ) {
+    final subscriptions = <StreamSubscription<void>>[];
+    late final StreamController<T> controller;
+    Future<void> emit() async {
+      final result = await query();
+      if (!controller.isClosed) controller.add(result);
+    }
+
+    controller = StreamController<T>(
+      onListen: () {
+        for (final trigger in triggers()) {
+          subscriptions.add(trigger.listen((_) => emit()));
+        }
+        emit();
+      },
+      onCancel: () async {
+        for (final s in subscriptions) {
+          await s.cancel();
+        }
+      },
+    );
+    return controller.stream;
+  }
+
   // --- Mapping between Isar records and domain entities ---
-
-  // OPTIONS.pros / cons are single TEXT columns, so each list is stored as
-  // one item per line.
-  static String? _joinLines(List<String> items) =>
-      items.isEmpty ? null : items.join('\n');
-
-  static List<String> _splitLines(String? text) => text == null || text.isEmpty
-      ? const []
-      : text.split('\n').where((line) => line.trim().isNotEmpty).toList();
 
   static Decision _toDecision(IsarDecision row) => Decision(
         localId: row.localId,
@@ -310,8 +293,8 @@ class IsarDecisionLocalDataSource implements DecisionLocalDataSource {
               key: o.localKey,
               serverId: o.serverId,
               title: o.title,
-              pros: _splitLines(o.pros),
-              cons: _splitLines(o.cons),
+              pros: linesFromApi(o.pros),
+              cons: linesFromApi(o.cons),
               createdAt: o.createdAt,
             ),
         ],
@@ -344,8 +327,8 @@ class IsarDecisionLocalDataSource implements DecisionLocalDataSource {
             ..localKey = o.key
             ..serverId = o.serverId
             ..title = o.title
-            ..pros = _joinLines(o.pros)
-            ..cons = _joinLines(o.cons)
+            ..pros = linesToApi(o.pros)
+            ..cons = linesToApi(o.cons)
             ..createdAt = o.createdAt,
       ]
       ..outcome = d.outcome == null
