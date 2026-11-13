@@ -30,6 +30,9 @@ class DecisionRepositoryImpl implements DecisionRepository {
   final String userId;
   final DateTime Function() _now;
 
+  static const missingHindsightNotes =
+      "Write what you know now that you didn't when you decided.";
+
   /// A request still "processing" after this long means the app was closed
   /// mid-request, so it no longer blocks a new one.
   static const processingTimeout = Duration(minutes: 3);
@@ -191,13 +194,16 @@ class DecisionRepositoryImpl implements DecisionRepository {
     }
     _checkScale(satisfactionAfter, 'Satisfaction');
     if (confidenceAfter != null) _checkScale(confidenceAfter, 'Confidence');
+    final notes = _blankToNull(hindsightNotes);
+    // The server refuses an evaluation without them.
+    if (notes == null) throw const DecisionException(missingHindsightNotes);
 
     final evaluation = await local.putEvaluation(Evaluation(
       decisionLocalId: localId,
       decisionServerId: d.serverId,
       satisfactionAfter: satisfactionAfter,
       confidenceAfter: confidenceAfter,
-      hindsightNotes: _blankToNull(hindsightNotes),
+      hindsightNotes: notes,
       createdAt: _now(),
     ));
     // Status is local only (the server derives it), so this isn't a change
@@ -336,7 +342,8 @@ class DecisionRepositoryImpl implements DecisionRepository {
             tag.serverId == null ? SyncStatus.pendingCreate : SyncStatus.synced,
       ));
     }
-    return local.putTag(Tag(userId: userId, name: trimmed, colorHex: colorHex));
+    return local.putTag(Tag(
+        userId: userId, name: trimmed, colorHex: colorHex ?? defaultTagColorHex));
   }
 
   @override

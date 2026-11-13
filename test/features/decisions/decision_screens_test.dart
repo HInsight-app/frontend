@@ -119,8 +119,14 @@ void main() {
     expect(find.text('Chosen'), findsOneWidget);
     expect(find.byTooltip('Edit decision'), findsNothing);
 
-    // Evaluate with the default answers
+    // Evaluate with the default scores: the notes are required
     await _tapText(tester, 'Evaluate this decision');
+    await _tapText(tester, 'Save evaluation');
+    expect(find.textContaining("know now that you didn't when you decided"),
+        findsOneWidget);
+    expect(find.text('Save evaluation'), findsOneWidget); // Still on the form
+    await tester.enterText(
+        find.byType(TextField).last, 'The workload was fine after all');
     await _tapText(tester, 'Save evaluation');
     expect(find.text('Evaluated'), findsOneWidget);
     expect(find.textContaining('Satisfaction: 50%'), findsOneWidget);

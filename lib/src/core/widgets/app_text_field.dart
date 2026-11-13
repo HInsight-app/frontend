@@ -9,6 +9,9 @@ class AppTextField extends StatefulWidget {
   final TextInputType keyboardType;
   final bool isPassword;
 
+  /// Shown under the field in the error colour, e.g. a required answer.
+  final String? errorText;
+
   const AppTextField({
     super.key,
     required this.label,
@@ -18,6 +21,7 @@ class AppTextField extends StatefulWidget {
     this.maxLines = 1,
     this.keyboardType = TextInputType.text,
     this.isPassword = false, // Defaults to false for normal fields
+    this.errorText,
   });
 
   @override
@@ -54,6 +58,7 @@ class _AppTextFieldState extends State<AppTextField> {
           // inputDecorationTheme, so every field looks the same.
           decoration: InputDecoration(
             hintText: widget.hint,
+            errorText: widget.errorText,
             prefixIcon:
                 widget.prefixIcon != null ? Icon(widget.prefixIcon) : null,
 

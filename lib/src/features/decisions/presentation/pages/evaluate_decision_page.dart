@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../core/widgets/app_button.dart';
 import '../../../../core/widgets/app_snack_bar.dart';
 import '../../../../core/widgets/app_text_field.dart';
+import '../../data/repositories/decision_repository_impl.dart';
 import '../../decisions_providers.dart';
 import '../../domain/usecases/decision_usecases.dart';
 import '../decision_providers.dart';
@@ -27,6 +28,7 @@ class _EvaluateDecisionPageState extends ConsumerState<EvaluateDecisionPage> {
   int _satisfaction = 50;
   int? _confidence; // Starts at the confidence felt before deciding
   bool _saving = false;
+  bool _notesMissing = false;
 
   @override
   void dispose() {
@@ -35,8 +37,15 @@ class _EvaluateDecisionPageState extends ConsumerState<EvaluateDecisionPage> {
   }
 
   Future<void> _save(int confidence) async {
+    if (_notes.text.trim().isEmpty) {
+      setState(() => _notesMissing = true);
+      return;
+    }
     final messenger = ScaffoldMessenger.of(context);
-    setState(() => _saving = true);
+    setState(() {
+      _notesMissing = false;
+      _saving = true;
+    });
     try {
       await EvaluateDecisionUseCase(ref.read(decisionRepositoryProvider)).execute(
         widget.decisionId,
@@ -94,10 +103,13 @@ class _EvaluateDecisionPageState extends ConsumerState<EvaluateDecisionPage> {
                 style: textTheme.bodySmall),
           const SizedBox(height: 16),
           AppTextField(
-            label: 'What do you know now that you didn\'t then? (optional)',
+            label: 'What do you know now that you didn\'t then?',
             hint: 'Your reflections',
             controller: _notes,
             maxLines: 4,
+            errorText: _notesMissing
+                ? DecisionRepositoryImpl.missingHindsightNotes
+                : null,
           ),
           const SizedBox(height: 32),
           AppButton(

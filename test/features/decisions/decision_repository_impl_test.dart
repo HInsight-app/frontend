@@ -11,6 +11,7 @@ import 'package:hinsight/src/features/decisions/domain/entities/ai_insight.dart'
 import 'package:hinsight/src/features/decisions/domain/entities/decision.dart';
 import 'package:hinsight/src/features/decisions/domain/entities/decision_enums.dart';
 import 'package:hinsight/src/features/decisions/domain/entities/decision_exception.dart';
+import 'package:hinsight/src/features/tags/domain/entities/tag.dart';
 
 import '../../helpers/fake_decisions.dart';
 
@@ -222,6 +223,11 @@ void main() {
       final d = await committed();
       expect(repo.evaluateDecision(d.localId!, satisfactionAfter: 0),
           brokenRule('between 1 and 100'));
+      // The server refuses an evaluation without hindsight notes.
+      expect(
+          repo.evaluateDecision(d.localId!,
+              satisfactionAfter: 80, confidenceAfter: 70, hindsightNotes: '  '),
+          brokenRule("know now that you didn't"));
 
       final e = await repo.evaluateDecision(d.localId!,
           satisfactionAfter: 80, confidenceAfter: 70, hindsightNotes: ' Good ');
@@ -432,7 +438,8 @@ void main() {
   group('tags', () {
     test('names are unique per user, ignoring case; colours are checked',
         () async {
-      await repo.createTag('Academic');
+      // The server needs a colour, so one is picked when the student doesn't.
+      expect((await repo.createTag('Academic')).colorHex, defaultTagColorHex);
       expect(repo.createTag(' academic '), brokenRule('already have a tag'));
       expect(repo.createTag('Career', colorHex: 'purple'), brokenRule('#8771FF'));
     });
