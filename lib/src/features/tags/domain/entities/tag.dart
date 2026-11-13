@@ -4,6 +4,10 @@ import '../../../../core/database/sync_status.dart';
 
 part 'tag.freezed.dart';
 
+/// The colour a tag gets when the student picks none: the server requires
+/// one. The brand colour (AppColors.primary).
+const defaultTagColorHex = '#8771FF';
+
 /// A label the student puts on decisions (e.g. Academic, Career). Names are
 /// unique per user. Mirrors TAGS.
 @freezed

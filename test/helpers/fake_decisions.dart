@@ -5,11 +5,24 @@ import 'package:hinsight/core.dart';
 import 'package:hinsight/src/core/routing/app_router.dart';
 import 'package:hinsight/src/features/auth/auth.dart';
 import 'package:hinsight/src/features/decisions/data/local/memory_decision_local_data_source.dart';
+import 'package:hinsight/src/features/decisions/data/local/pull_cursor_store.dart';
 import 'package:hinsight/src/features/decisions/data/remote/fake_decision_remote_data_source.dart';
 import 'package:hinsight/src/features/decisions/decisions_providers.dart';
 import 'package:hinsight/src/features/decisions/presentation/sync_controller.dart';
 
 import 'fake_auth.dart';
+
+/// Pull cursors kept in memory: one store per simulated device.
+class MemoryPullCursors implements PullCursorStore {
+  final _saved = <String, DateTime>{};
+
+  @override
+  Future<DateTime?> read(String userId) async => _saved[userId];
+
+  @override
+  Future<void> write(String userId, DateTime cursor) async =>
+      _saved[userId] = cursor;
+}
 
 /// In-memory decision storage and an instant fake server, as provider
 /// overrides (main() normally supplies the store). The background sync is
@@ -24,6 +37,7 @@ List<Override> decisionOverrides({
       decisionRemoteDataSourceProvider.overrideWithValue(
           server ?? FakeDecisionRemoteDataSource(latency: Duration.zero)),
       autoSyncProvider.overrideWithValue(autoSync),
+      pullCursorStoreProvider.overrideWithValue(MemoryPullCursors()),
     ];
 
 /// Pumps a few frames. pumpAndSettle can't be used: loading spinners never

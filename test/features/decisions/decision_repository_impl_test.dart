@@ -12,6 +12,8 @@ import 'package:hinsight/src/features/decisions/domain/entities/decision.dart';
 import 'package:hinsight/src/features/decisions/domain/entities/decision_enums.dart';
 import 'package:hinsight/src/features/decisions/domain/entities/decision_exception.dart';
 
+import '../../helpers/fake_decisions.dart';
+
 /// A fake server that lets a test act while a create request is "in flight".
 class _SlowRemote extends FakeDecisionRemoteDataSource {
   _SlowRemote() : super(latency: Duration.zero);
@@ -38,7 +40,11 @@ void main() {
         local: local,
         remote: remote,
         sync: SyncRepositoryImpl(
-            local: local, remote: remote, userId: userId, clock: () => now),
+            local: local,
+            remote: remote,
+            userId: userId,
+            cursors: MemoryPullCursors(),
+            clock: () => now),
         userId: userId,
         clock: () => now,
       );
@@ -402,15 +408,16 @@ void main() {
           at: now.add(const Duration(minutes: 1)), delete: true);
       now = now.add(const Duration(minutes: 2));
 
+      // The sync before the request brings the deletion.
       await expectLater(repo.requestInsight(d.localId!, TriggerContext.preDecision),
-          brokenRule('deleted on another device'));
+          brokenRule('no longer exists'));
       expect(await local.getDecision(d.localId!), isNull);
     });
 
     test('a look back sends the evaluation and compares confidence', () async {
       final d = await committed();
       await repo.evaluateDecision(d.localId!,
-          satisfactionAfter: 40, confidenceAfter: 30);
+          satisfactionAfter: 40, confidenceAfter: 30, hindsightNotes: 'Rushed');
 
       final insight =
           await repo.requestInsight(d.localId!, TriggerContext.postEvaluation);

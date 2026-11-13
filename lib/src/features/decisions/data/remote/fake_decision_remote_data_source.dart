@@ -8,11 +8,11 @@ import '../../domain/entities/decision_enums.dart';
 import '../../domain/entities/evaluation.dart';
 import 'decision_remote_data_source.dart';
 
-/// Stands in for the backend until its decision endpoints exist. It keeps
-/// "server" copies in memory (so they are gone when the app restarts) and
-/// follows the rules docs/SYNC_API.md asks of the real server, including
-/// last-write-wins with 409 Conflict. Insights are samples made from simple
-/// rules, clearly labelled as such: it is not the AI.
+/// Stands in for the backend, the default unless .env has DECISION_API=live.
+/// It keeps "server" copies in memory (so they are gone when the app
+/// restarts) and follows the backend's sync rules, including last-write-wins
+/// with 409 Conflict and pulls by server time. Insights are samples made from
+/// simple rules, clearly labelled as such: it is not the AI.
 class FakeDecisionRemoteDataSource implements DecisionRemoteDataSource {
   FakeDecisionRemoteDataSource({
     this.latency = const Duration(milliseconds: 800),
@@ -47,7 +47,7 @@ class FakeDecisionRemoteDataSource implements DecisionRemoteDataSource {
     final stored = _decisions[id];
     if (stored == null) throw _notFound;
     if (stored.deletedAt != null) {
-      throw DecisionConflictException(stored.toRemote());
+      throw DecisionConflictException(_toRemote(stored));
     }
     return stored;
   }
@@ -64,6 +64,7 @@ class FakeDecisionRemoteDataSource implements DecisionRemoteDataSource {
             newUuidV4(),
     };
     _decisions[id] = _StoredDecision(
+      serverUpdatedAt: _now(),
       decision: decision.copyWith(
         serverId: id,
         options: [
@@ -95,7 +96,7 @@ class FakeDecisionRemoteDataSource implements DecisionRemoteDataSource {
     // Last write wins (paper III-F): a copy changed after this one stays,
     // and a newer change brings back a decision deleted elsewhere.
     if (stored.updatedAt.isAfter(decision.updatedAt)) {
-      throw DecisionConflictException(stored.toRemote());
+      throw DecisionConflictException(_toRemote(stored));
     }
     return _store(decision, decision.serverId!, tagServerIds);
   }
@@ -107,10 +108,11 @@ class FakeDecisionRemoteDataSource implements DecisionRemoteDataSource {
     if (stored == null) throw _notFound;
     if (stored.deletedAt != null) return; // Already deleted: nothing to do
     if (stored.updatedAt.isAfter(updatedAt)) {
-      throw DecisionConflictException(stored.toRemote());
+      throw DecisionConflictException(_toRemote(stored));
     }
     // Soft delete, like DECISIONS.deleted_at.
     stored.deletedAt = _now();
+    stored.serverUpdatedAt = _now();
     stored.decision = stored.decision.copyWith(updatedAt: updatedAt);
   }
 
@@ -120,12 +122,13 @@ class FakeDecisionRemoteDataSource implements DecisionRemoteDataSource {
     Evaluation evaluation,
   ) async {
     await _call();
-    _live(decisionServerId);
+    final stored = _live(decisionServerId);
     // One evaluation per decision: a retried request gets the same one back.
     final existing = _evaluations[decisionServerId];
     if (existing != null) return existing.serverId!;
     final id = newUuidV4();
     _evaluations[decisionServerId] = evaluation.copyWith(serverId: id);
+    stored.serverUpdatedAt = _now();
     return id;
   }
 
@@ -164,15 +167,75 @@ class FakeDecisionRemoteDataSource implements DecisionRemoteDataSource {
     await _call();
     if (_tags.remove(serverId) == null) throw _notFound;
     for (final stored in _decisions.values) {
-      stored.tagIds.remove(serverId); // ON DELETE CASCADE
+      // ON DELETE CASCADE
+      if (stored.tagIds.remove(serverId)) stored.serverUpdatedAt = _now();
     }
+  }
+
+  @override
+  Future<List<RemoteDecision>> pullDecisions({DateTime? since}) async {
+    await _call();
+    return [
+      for (final stored in _decisions.values)
+        if (since == null || !stored.serverUpdatedAt.isBefore(since))
+          _toRemote(stored),
+    ]..sort((a, b) => a.serverUpdatedAt.compareTo(b.serverUpdatedAt));
+  }
+
+  RemoteDecision _toRemote(_StoredDecision stored) {
+    final d = stored.decision;
+    final chosen = d.chosenOption;
+    final evaluation = _evaluations[d.serverId];
+    return RemoteDecision(
+      id: d.serverId!,
+      title: d.title,
+      context: d.context,
+      confidenceBefore: d.confidenceBefore,
+      scheduledReviewDate: d.scheduledReviewDate,
+      createdAt: d.createdAt,
+      updatedAt: d.updatedAt,
+      serverUpdatedAt: stored.serverUpdatedAt,
+      deletedAt: stored.deletedAt,
+      options: [
+        for (final o in d.options)
+          RemoteOption(
+            id: o.serverId!,
+            title: o.title,
+            pros: o.pros,
+            cons: o.cons,
+            createdAt: o.createdAt,
+          ),
+      ],
+      outcome: d.outcome == null || chosen == null
+          ? null
+          : RemoteOutcome(
+              chosenOptionId: chosen.serverId!,
+              commitmentNote: d.outcome!.commitmentNote,
+              decidedAt: d.outcome!.decidedAt,
+            ),
+      evaluation: evaluation == null
+          ? null
+          : RemoteEvaluation(
+              id: evaluation.serverId!,
+              satisfactionAfter: evaluation.satisfactionAfter,
+              confidenceAfter: evaluation.confidenceAfter,
+              hindsightNotes: evaluation.hindsightNotes,
+              createdAt: evaluation.createdAt,
+            ),
+      tags: [
+        for (final id in stored.tagIds)
+          if (_tags[id] case final tag?)
+            RemoteTag(id: id, name: tag.name, colorHex: tag.colorHex),
+      ],
+    );
   }
 
   // --- For tests and the sandbox page ---
 
   /// The server's copy of a decision, or null if it never had it.
   @visibleForTesting
-  RemoteDecision? serverCopy(String id) => _decisions[id]?.toRemote();
+  RemoteDecision? serverCopy(String id) =>
+      _decisions[id] == null ? null : _toRemote(_decisions[id]!);
 
   @visibleForTesting
   Evaluation? serverEvaluation(String decisionServerId) =>
@@ -195,6 +258,7 @@ class FakeDecisionRemoteDataSource implements DecisionRemoteDataSource {
       title: title ?? stored.decision.title,
       updatedAt: at,
     );
+    stored.serverUpdatedAt = _now();
     if (delete) stored.deletedAt = at;
   }
 
@@ -208,46 +272,18 @@ class FakeDecisionRemoteDataSource implements DecisionRemoteDataSource {
 }
 
 class _StoredDecision {
-  _StoredDecision({required this.decision, required this.tagIds});
+  _StoredDecision({
+    required this.decision,
+    required this.tagIds,
+    required this.serverUpdatedAt,
+  });
 
   Decision decision; // With server ids filled in
   final List<String> tagIds;
+  DateTime serverUpdatedAt;
   DateTime? deletedAt;
 
   DateTime get updatedAt => decision.updatedAt;
-
-  RemoteDecision toRemote() {
-    final d = decision;
-    final chosen = d.chosenOption;
-    return RemoteDecision(
-      id: d.serverId!,
-      title: d.title,
-      context: d.context,
-      confidenceBefore: d.confidenceBefore,
-      scheduledReviewDate: d.scheduledReviewDate,
-      createdAt: d.createdAt,
-      updatedAt: d.updatedAt,
-      deletedAt: deletedAt,
-      options: [
-        for (final o in d.options)
-          RemoteOption(
-            id: o.serverId!,
-            title: o.title,
-            pros: o.pros,
-            cons: o.cons,
-            createdAt: o.createdAt,
-          ),
-      ],
-      outcome: d.outcome == null || chosen == null
-          ? null
-          : RemoteOutcome(
-              chosenOptionId: chosen.serverId!,
-              commitmentNote: d.outcome!.commitmentNote,
-              decidedAt: d.outcome!.decidedAt,
-            ),
-      tagIds: List.of(tagIds),
-    );
-  }
 }
 
 /// Builds a placeholder insight from keyword rules, so the screens can be

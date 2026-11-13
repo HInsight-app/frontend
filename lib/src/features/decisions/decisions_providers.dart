@@ -2,8 +2,10 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/network/dio_provider.dart';
+import '../../core/storage/token_storage.dart';
 import '../auth/presentation/controllers/auth_controller.dart';
 import 'data/local/decision_local_data_source.dart';
+import 'data/local/pull_cursor_store.dart';
 import 'data/remote/decision_remote_data_source.dart';
 import 'data/remote/dio_decision_remote_data_source.dart';
 import 'data/remote/fake_decision_remote_data_source.dart';
@@ -20,8 +22,8 @@ final decisionLocalDataSourceProvider = Provider<DecisionLocalDataSource>(
 );
 
 /// Whether .env asks for the real backend (DECISION_API=live). Anything else,
-/// or no value, means the fake server: the backend doesn't have the decision
-/// endpoints yet (see docs/SYNC_API.md).
+/// or no value, means the in-memory fake server, which tests and the web
+/// preview rely on (the backend has no CORS, so a browser can't call it).
 bool useLiveDecisionApi() =>
     dotenv.isInitialized &&
     dotenv.env['DECISION_API']?.trim().toLowerCase() == 'live';
@@ -42,12 +44,19 @@ final currentUserIdProvider = Provider<String>(
   (ref) => ref.watch(authControllerProvider).valueOrNull?.id ?? previewUserId,
 );
 
-/// Sends the changes saved on the device to the server (paper III-F).
+/// Where each user's next pull starts, kept in the device's secure storage.
+final pullCursorStoreProvider = Provider<PullCursorStore>(
+  (ref) => PullCursorStore(ref.watch(secureStorageProvider)),
+);
+
+/// Sends the changes saved on the device to the server and brings back the
+/// server's (paper III-F).
 final syncRepositoryProvider = Provider<SyncRepositoryImpl>(
   (ref) => SyncRepositoryImpl(
     local: ref.watch(decisionLocalDataSourceProvider),
     remote: ref.watch(decisionRemoteDataSourceProvider),
     userId: ref.watch(currentUserIdProvider),
+    cursors: ref.watch(pullCursorStoreProvider),
   ),
 );
 

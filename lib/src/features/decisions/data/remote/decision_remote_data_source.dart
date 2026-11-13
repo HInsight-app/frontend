@@ -12,21 +12,23 @@ class RemoteDecisionIds {
 }
 
 /// A decision as the server stores it (DECISIONS with its OPTIONS,
-/// DECISION_OUTCOMES and DECISION_TAGS). The app only receives one when the
-/// server's copy wins a conflict (409).
+/// DECISION_OUTCOMES, EVALUATIONS and DECISION_TAGS). The app receives one
+/// when the server's copy wins a conflict (409) and when it pulls changes.
 class RemoteDecision {
   const RemoteDecision({
     required this.id,
     required this.title,
     required this.createdAt,
     required this.updatedAt,
+    required this.serverUpdatedAt,
     this.context,
     this.confidenceBefore,
     this.scheduledReviewDate,
     this.deletedAt,
     this.options = const [],
     this.outcome,
-    this.tagIds = const [],
+    this.evaluation,
+    this.tags = const [],
   });
 
   final String id;
@@ -35,11 +37,42 @@ class RemoteDecision {
   final int? confidenceBefore;
   final DateTime? scheduledReviewDate;
   final DateTime createdAt;
+
+  /// The device's time of the last edit, used for last-write-wins.
   final DateTime updatedAt;
+
+  /// The server's time of its last change to the decision or anything in it.
+  /// The largest one seen is where the next pull starts.
+  final DateTime serverUpdatedAt;
   final DateTime? deletedAt;
   final List<RemoteOption> options;
   final RemoteOutcome? outcome;
-  final List<String> tagIds;
+  final RemoteEvaluation? evaluation;
+  final List<RemoteTag> tags;
+}
+
+class RemoteTag {
+  const RemoteTag({required this.id, required this.name, this.colorHex});
+
+  final String id;
+  final String name;
+  final String? colorHex;
+}
+
+class RemoteEvaluation {
+  const RemoteEvaluation({
+    required this.id,
+    required this.createdAt,
+    this.satisfactionAfter,
+    this.confidenceAfter,
+    this.hindsightNotes,
+  });
+
+  final String id;
+  final int? satisfactionAfter;
+  final int? confidenceAfter;
+  final String? hindsightNotes;
+  final DateTime createdAt;
 }
 
 class RemoteOption {
@@ -108,28 +141,30 @@ class RemoteInsight {
   final double? modelConfidence;
 }
 
-/// The endpoints the app needs from the backend. As of 2026-11-04 the backend
-/// has none of them (only a title-only POST /decisions, not even mounted), so
-/// the app uses FakeDecisionRemoteDataSource. DioDecisionRemoteDataSource
-/// calls the real ones; docs/SYNC_API.md describes each request and response.
+/// The backend's decision and tag endpoints, all POST except reads.
+/// DioDecisionRemoteDataSource calls the real ones (DECISION_API=live in
+/// .env); FakeDecisionRemoteDataSource stands in for them by default.
 ///
 /// Failures throw an ApiException; a 409 on a decision throws a
 /// DecisionConflictException.
 abstract class DecisionRemoteDataSource {
-  /// POST /decisions. [tagServerIds] are the server ids of its tags.
+  /// POST /decisions, with its outcome when it was committed before its
+  /// first sync. [tagServerIds] are the server ids of its tags.
   Future<RemoteDecisionIds> createDecision(
     Decision decision, {
     required List<String> tagServerIds,
   });
 
-  /// PUT /decisions/{id}: the whole decision, including its outcome once
-  /// committed. The server keeps whichever copy has the later updated_at.
+  /// POST /decisions/{id}/sync: the whole decision, including its outcome
+  /// once committed. The server keeps whichever copy has the later
+  /// updated_at.
   Future<RemoteDecisionIds> updateDecision(
     Decision decision, {
     required List<String> tagServerIds,
   });
 
-  /// DELETE /decisions/{id}, with the local [updatedAt] for the same check.
+  /// POST /decisions/{id}/delete, with the local [updatedAt] for the same
+  /// check.
   Future<void> deleteDecision(String serverId, {required DateTime updatedAt});
 
   /// POST /decisions/{id}/evaluations. Returns the evaluation's server id,
@@ -146,6 +181,10 @@ abstract class DecisionRemoteDataSource {
   /// a tag with that name on the server.
   Future<String> createTag(Tag tag);
 
-  /// DELETE /tags/{id}.
+  /// POST /tags/{id}/delete.
   Future<void> deleteTag(String serverId);
+
+  /// GET /decisions?updated_since=: the user's decisions the server changed
+  /// at or after [since] (every one when null), deleted ones included.
+  Future<List<RemoteDecision>> pullDecisions({DateTime? since});
 }

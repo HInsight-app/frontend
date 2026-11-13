@@ -6,18 +6,23 @@ import '../../../../core/utils/uuid.dart';
 import '../../../tags/domain/entities/tag.dart';
 import '../../domain/entities/decision.dart';
 import '../../domain/entities/decision_enums.dart';
+import '../../domain/entities/evaluation.dart';
 import '../../domain/entities/sync_report.dart';
 import '../../domain/repositories/sync_repository.dart';
 import '../local/decision_local_data_source.dart';
+import '../local/pull_cursor_store.dart';
 import '../remote/decision_remote_data_source.dart';
 
-/// Sends the changes saved on the device to the server, as the paper
-/// describes in III-F:
+/// Sends the changes saved on the device to the server and brings back the
+/// server's changes, as the paper describes in III-F:
 ///
 /// - pendingCreate: POST, then store the returned server ids and mark synced.
-/// - pendingUpdate: PUT with the local updated_at. On 409 Conflict the
+/// - pendingUpdate: POST /sync with the local updated_at. On 409 Conflict the
 ///   server's copy is newer, so it replaces the one on the device.
-/// - pendingDelete: DELETE, then remove the record from the device.
+/// - pendingDelete: POST /delete, then remove the record from the device.
+/// - Pull: the decisions changed on the server since the last pull (e.g. on
+///   another device) are stored on the device, last write winning against a
+///   change still waiting here.
 ///
 /// The student may keep editing while a request is out, so after every
 /// request the record is read again and a newer change is never overwritten.
@@ -26,12 +31,14 @@ class SyncRepositoryImpl implements SyncRepository {
     required this.local,
     required this.remote,
     required this.userId,
+    required this.cursors,
     DateTime Function()? clock,
   }) : _now = clock ?? DateTime.now;
 
   final DecisionLocalDataSource local;
   final DecisionRemoteDataSource remote;
   final String userId;
+  final PullCursorStore cursors;
   final DateTime Function() _now;
 
   // Two syncs at once could send the same new decision twice and create it
@@ -79,6 +86,13 @@ class SyncRepositoryImpl implements SyncRepository {
     try {
       await _syncTags(log);
       await _syncDecisions(log);
+      // Before evaluations: the server answers an evaluation of a decision
+      // deleted elsewhere with 404, which would send the decision again as
+      // new. The pull removes it first.
+      await _attempt(log, 'Getting changes from the server', () async {
+        await _pull();
+        log.reachedServer = true;
+      });
       await _syncEvaluations(log);
     } on ApiException catch (e) {
       // Offline or signed out: every other request would fail the same way.
@@ -306,17 +320,30 @@ class SyncRepositoryImpl implements SyncRepository {
       await local.deleteDecisionPermanently(latest.localId!);
       return;
     }
+    await _saveServerCopy(server, over: latest);
+  }
 
-    final options = [
+  /// Stores the server's copy of a decision on the device: over the device's
+  /// copy [over], or as a new record. Tags the device doesn't have are added,
+  /// and so is the server's evaluation when the device has none.
+  Future<void> _saveServerCopy(RemoteDecision server, {Decision? over}) async {
+    final mine = over?.options ?? const <DecisionOption>[];
+    final fromServer = [
       for (final o in server.options)
         DecisionOption(
-          key: _keyFor(o, latest.options),
+          key: _keyFor(o, mine),
           serverId: o.id,
           title: o.title,
           pros: o.pros,
           cons: o.cons,
           createdAt: o.createdAt,
         ),
+    ];
+    // Options created together share a created_at, so the server's order
+    // isn't stable: keep the device's.
+    final options = [
+      for (final m in mine) ...fromServer.where((o) => o.key == m.key),
+      ...fromServer.where((o) => !mine.any((m) => m.key == o.key)),
     ];
 
     DecisionOutcome? outcome;
@@ -336,8 +363,8 @@ class SyncRepositoryImpl implements SyncRepository {
 
     var syncStatus = SyncStatus.synced;
     var updatedAt = server.updatedAt;
-    final myChoice = latest.chosenOption;
-    if (outcome == null && latest.outcome != null && myChoice != null) {
+    final myChoice = over?.chosenOption;
+    if (outcome == null && over?.outcome != null && myChoice != null) {
       // Committing is final (paper III-F), so a conflict never undoes a
       // commitment made on the device: keep it, with its chosen option, and
       // send it again as the newer change.
@@ -349,7 +376,7 @@ class SyncRepositoryImpl implements SyncRepository {
         options.add(myChoice.copyWith(serverId: null));
         key = myChoice.key;
       }
-      outcome = latest.outcome!.copyWith(chosenOptionKey: key);
+      outcome = over!.outcome!.copyWith(chosenOptionKey: key);
       syncStatus = SyncStatus.pendingUpdate;
       final now = _now();
       // Later than the server's copy even if the phone's clock is behind.
@@ -358,13 +385,13 @@ class SyncRepositoryImpl implements SyncRepository {
           : server.updatedAt.add(const Duration(milliseconds: 1));
     }
 
-    final tags = await local.getTags(userId);
-    final evaluated =
-        outcome != null && await local.getEvaluation(latest.localId!) != null;
-    await local.putDecision(Decision(
-      localId: latest.localId,
+    final myEvaluation =
+        over == null ? null : await local.getEvaluation(over.localId!);
+    final serverEvaluation = outcome == null ? null : server.evaluation;
+    final decision = Decision(
+      localId: over?.localId,
       serverId: server.id,
-      userId: latest.userId,
+      userId: over?.userId ?? userId,
       title: server.title,
       context: server.context,
       confidenceBefore: server.confidenceBefore,
@@ -373,18 +400,54 @@ class SyncRepositoryImpl implements SyncRepository {
       updatedAt: updatedAt,
       options: options,
       outcome: outcome,
-      // Tags the device doesn't know yet are left out.
-      tagLocalIds: [
-        for (final id in server.tagIds)
-          ...tags.where((t) => t.serverId == id).map((t) => t.localId!),
-      ],
+      tagLocalIds: await _localTagIds(server.tags),
       status: outcome == null
           ? DecisionStatus.pending
-          : evaluated
+          : myEvaluation != null || serverEvaluation != null
               ? DecisionStatus.evaluated
               : DecisionStatus.decided,
       syncStatus: syncStatus,
-    ));
+    );
+    // Most pulls bring back what this device sent: skip the needless write.
+    final saved = decision == over ? over! : await local.putDecision(decision);
+
+    if (myEvaluation == null && serverEvaluation != null) {
+      await local.putEvaluation(Evaluation(
+        decisionLocalId: saved.localId!,
+        serverId: serverEvaluation.id,
+        decisionServerId: server.id,
+        satisfactionAfter: serverEvaluation.satisfactionAfter,
+        confidenceAfter: serverEvaluation.confidenceAfter,
+        hindsightNotes: serverEvaluation.hindsightNotes,
+        createdAt: serverEvaluation.createdAt,
+        syncStatus: SyncStatus.synced,
+      ));
+    }
+  }
+
+  /// The device's ids for the server's tags. A tag the device doesn't know
+  /// by server id is matched by name (unique per user), or else added.
+  Future<List<int>> _localTagIds(List<RemoteTag> serverTags) async {
+    final ids = <int>[];
+    for (final serverTag in serverTags) {
+      final tags = await local.getTags(userId);
+      var tag = tags.where((t) => t.serverId == serverTag.id).firstOrNull ??
+          tags
+              .where((t) =>
+                  t.name.toLowerCase() == serverTag.name.toLowerCase())
+              .firstOrNull;
+      if (tag?.syncStatus == SyncStatus.pendingDelete) continue;
+      if (tag == null || tag.serverId != serverTag.id) {
+        tag = await local.putTag((tag ??
+                Tag(
+                    userId: userId,
+                    name: serverTag.name,
+                    colorHex: serverTag.colorHex))
+            .copyWith(serverId: serverTag.id, syncStatus: SyncStatus.synced));
+      }
+      ids.add(tag.localId!);
+    }
+    return ids;
   }
 
   /// Keeps an option's local key (the outcome refers to it) when the server
@@ -398,6 +461,37 @@ class SyncRepositoryImpl implements SyncRepository {
           .firstOrNull
           ?.key ??
       newUuidV4();
+
+  // --- Pull: changes made on the server, e.g. on another device ---
+
+  /// Stores the decisions the server changed since the last pull. A change
+  /// still waiting on the device stays when it is newer (last write wins, as
+  /// with a 409); otherwise the server's copy replaces it.
+  Future<void> _pull() async {
+    final since = await cursors.read(userId);
+    final copies = await remote.pullDecisions(since: since);
+    final known = {
+      for (final d in [
+        ...await local.watchDecisions(userId).first,
+        ...await local.getUnsyncedDecisions(userId), // Deleted ones too
+      ])
+        if (d.serverId != null) d.serverId!: d,
+    };
+    var cursor = since;
+    for (final copy in copies) {
+      final mine = known[copy.id];
+      if (mine == null) {
+        if (copy.deletedAt == null) await _saveServerCopy(copy);
+      } else if (mine.syncStatus == SyncStatus.synced ||
+          copy.updatedAt.isAfter(mine.updatedAt)) {
+        await _keepServerVersion(mine, copy);
+      }
+      if (cursor == null || copy.serverUpdatedAt.isAfter(cursor)) {
+        cursor = copy.serverUpdatedAt;
+      }
+    }
+    if (cursor != null) await cursors.write(userId, cursor);
+  }
 
   // --- Evaluations: last, because they need their decision's server id ---
 

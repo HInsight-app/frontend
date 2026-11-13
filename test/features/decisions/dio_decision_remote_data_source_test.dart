@@ -12,6 +12,50 @@ import 'package:hinsight/src/features/tags/domain/entities/tag.dart';
 
 import '../../helpers/fake_http_adapter.dart';
 
+/// A DecisionResponse as the backend sends it (times in the server's zone).
+Map<String, Object?> serverDecision({
+  String id = 'd-1',
+  String title = 'Pick an elective',
+  String updatedAt = '2026-11-04T10:05:00+07:00',
+  String? deletedAt,
+  Map<String, Object?>? outcome,
+  Map<String, Object?>? evaluation,
+}) =>
+    {
+      'id': id,
+      'user_id': 'u-1',
+      'title': title,
+      'status': 'pending',
+      'context': 'Two courses fit',
+      'confidence_before': 70,
+      'scheduled_review_date': '2026-12-01',
+      'created_at': '2026-11-04T10:00:00+07:00',
+      'updated_at': updatedAt,
+      'server_updated_at': '2026-11-04T11:00:00.123456+07:00',
+      if (deletedAt != null) 'deleted_at': deletedAt,
+      'options': [
+        {
+          'id': 'o-1',
+          'decision_id': id,
+          'title': 'Data Mining',
+          'pros': 'Thesis topic\n\nGood lecturer',
+          'created_at': '2026-11-04T10:00:00+07:00',
+        },
+        {
+          'id': 'o-2',
+          'decision_id': id,
+          'title': 'game design', // Matched to the app's option ignoring case
+          'cons': 'Far',
+          'created_at': '2026-11-04T10:00:00+07:00',
+        },
+      ],
+      if (outcome != null) 'outcome': outcome,
+      if (evaluation != null) 'evaluation': evaluation,
+      'tags': [
+        {'id': 't-1', 'user_id': 'u-1', 'name': 'Career', 'color_hex': '#8771FF'},
+      ],
+    };
+
 void main() {
   late FakeHttpAdapter server;
   late DioDecisionRemoteDataSource api;
@@ -42,23 +86,21 @@ void main() {
           createdAt: created),
       DecisionOption(key: 'k-2', title: 'Game Design', cons: ['Far'], createdAt: created),
     ],
+  );
+  final committed = decision.copyWith(
     outcome: DecisionOutcome(
         chosenOptionKey: 'k-2', commitmentNote: 'Fun', decidedAt: created),
   );
 
-  test('POST /decisions sends the decision in the API\'s JSON', () async {
+  test('POST /decisions sends the fields the backend reads', () async {
     server
       ..status = 201
-      ..body = {
-        'id': 'd-1',
-        'options': [
-          {'id': 'o-1', 'client_key': 'k-1'},
-          {'id': 'o-2', 'client_key': 'k-2'},
-        ],
-      };
+      ..body = serverDecision();
 
-    final ids = await api.createDecision(decision, tagServerIds: ['t-1']);
+    final ids = await api.createDecision(
+        decision.copyWith(serverId: null), tagServerIds: ['t-1']);
 
+    expect(server.requests, hasLength(1));
     expect(server.lastRequest.method, 'POST');
     expect(server.lastRequest.path, '/decisions');
     expect(server.lastRequest.headers['Idempotency-Key'],
@@ -69,7 +111,66 @@ void main() {
       'confidence_before': 60,
       'scheduled_review_date': '2026-12-01',
       'created_at': '2026-11-04T03:00:00.000Z',
-      'updated_at': '2026-11-04T03:05:00.000Z',
+      'tag_ids': ['t-1'],
+      'options': [
+        {'title': 'Data Mining', 'pros': 'Thesis topic\nGood lecturer', 'cons': null},
+        {'title': 'Game Design', 'pros': null, 'cons': 'Far'},
+      ],
+    });
+    expect(ids.id, 'd-1');
+    expect(ids.optionIds, {'k-1': 'o-1', 'k-2': 'o-2'});
+  });
+
+  test('a decision committed before its first sync is sent again with its outcome',
+      () async {
+    server.reply = (request) => (request.path == '/decisions' ? 201 : 200,
+        serverDecision(outcome: {
+          'decision_id': 'd-1',
+          'chosen_option_id': 'o-2',
+          'decided_at': '2026-11-04T10:00:00+07:00',
+        }));
+
+    final ids = await api.createDecision(
+        committed.copyWith(serverId: null), tagServerIds: const []);
+
+    expect([for (final r in server.requests) r.path],
+        ['/decisions', '/decisions/d-1/sync']);
+    final sync = server.lastRequest.data as Map;
+    expect(sync['local_updated_at'], '2026-11-04T03:05:00.000Z');
+    expect(sync['options'], [
+      {
+        'id': 'o-1',
+        'client_key': 'k-1',
+        'title': 'Data Mining',
+        'pros': 'Thesis topic\nGood lecturer',
+        'cons': null,
+      },
+      {'id': 'o-2', 'client_key': 'k-2', 'title': 'Game Design', 'pros': null, 'cons': 'Far'},
+    ]);
+    expect(sync['outcome'], {
+      'chosen_option_id': 'o-2',
+      'chosen_option_key': 'k-2',
+      'commitment_note': 'Fun',
+      'decided_at': '2026-11-04T03:00:00.000Z',
+    });
+    expect(ids.optionIds, {'k-1': 'o-1', 'k-2': 'o-2'});
+  });
+
+  test('POST /decisions/{id}/sync sends the whole decision with local_updated_at',
+      () async {
+    server.body = serverDecision();
+
+    final ids = await api.updateDecision(committed, tagServerIds: ['t-1']);
+
+    expect(server.lastRequest.method, 'POST');
+    expect(server.lastRequest.path, '/decisions/d-1/sync');
+    expect(server.lastRequest.data, {
+      'title': 'Pick an elective',
+      'context': 'Two courses fit',
+      'confidence_before': 60,
+      'scheduled_review_date': '2026-12-01',
+      'created_at': '2026-11-04T03:00:00.000Z',
+      'local_updated_at': '2026-11-04T03:05:00.000Z',
       'tag_ids': ['t-1'],
       'options': [
         {
@@ -78,75 +179,44 @@ void main() {
           'title': 'Data Mining',
           'pros': 'Thesis topic\nGood lecturer',
           'cons': null,
-          'created_at': '2026-11-04T03:00:00.000Z',
         },
-        {
-          'id': null,
-          'client_key': 'k-2',
-          'title': 'Game Design',
-          'pros': null,
-          'cons': 'Far',
-          'created_at': '2026-11-04T03:00:00.000Z',
-        },
+        {'id': null, 'client_key': 'k-2', 'title': 'Game Design', 'pros': null, 'cons': 'Far'},
       ],
       'outcome': {
+        // The key works even before the chosen option has a server id.
         'chosen_option_id': null,
         'chosen_option_key': 'k-2',
         'commitment_note': 'Fun',
         'decided_at': '2026-11-04T03:00:00.000Z',
       },
     });
-    expect(ids.id, 'd-1');
+    // The reply has no client_key: options are matched by title.
     expect(ids.optionIds, {'k-1': 'o-1', 'k-2': 'o-2'});
   });
 
-  test('option ids are matched by title when the reply has no client_key',
+  test("409 on an edit carries the server's newer copy, tags and evaluation included",
       () async {
-    server.body = {
-      'id': 'd-1',
-      'options': [
-        {'id': 'o-9', 'title': 'game design'},
-      ],
-    };
-
-    final ids = await api.updateDecision(decision, tagServerIds: const []);
-
-    expect(server.lastRequest.method, 'PUT');
-    expect(server.lastRequest.path, '/decisions/d-1');
-    expect(ids.optionIds, {'k-2': 'o-9'});
-  });
-
-  test('409 on an edit carries the server\'s newer copy', () async {
     server
       ..status = 409
       ..body = {
-        'error': 'A newer version exists',
-        'decision': {
-          'id': 'd-1',
-          'title': 'From the laptop',
-          'context': null,
-          'confidence_before': 70,
-          // How Go encodes a DATE column
-          'scheduled_review_date': '2026-12-01T00:00:00Z',
-          'created_at': '2026-11-04T03:00:00Z',
-          'updated_at': '2026-11-04T04:00:00.123456Z',
-          'deleted_at': null,
-          'options': [
-            {
-              'id': 'o-1',
-              'title': 'Data Mining',
-              'pros': 'Thesis topic\n\nGood lecturer',
-              'cons': null,
-              'created_at': '2026-11-04T03:00:00Z',
-            },
-          ],
-          'outcome': {
+        'error': 'Conflict: server has newer version',
+        'decision': serverDecision(
+          title: 'From the laptop',
+          updatedAt: '2026-11-04T11:00:00.123456+07:00',
+          outcome: {
+            'decision_id': 'd-1',
             'chosen_option_id': 'o-1',
-            'commitment_note': null,
-            'decided_at': '2026-11-04T03:30:00Z',
+            'decided_at': '2026-11-04T10:30:00+07:00',
           },
-          'tag_ids': ['t-1'],
-        },
+          evaluation: {
+            'id': 'e-1',
+            'decision_id': 'd-1',
+            'satisfaction_after': 80,
+            'confidence_after': 65,
+            'hindsight_notes': 'Worth it',
+            'created_at': '2026-11-05T09:00:00+07:00',
+          },
+        ),
       };
 
     final conflict = await api
@@ -161,21 +231,25 @@ void main() {
     // Parsed to local time, at the same moment, down to the microsecond.
     expect(copy.updatedAt.isUtc, isFalse);
     expect(copy.updatedAt.toUtc(), DateTime.utc(2026, 11, 4, 4, 0, 0, 123, 456));
+    expect(copy.serverUpdatedAt.toUtc(), DateTime.utc(2026, 11, 4, 4, 0, 0, 123, 456));
     expect(copy.deletedAt, isNull);
-    expect(copy.options.single.pros, ['Thesis topic', 'Good lecturer']);
+    expect(copy.options.first.pros, ['Thesis topic', 'Good lecturer']);
     expect(copy.outcome!.chosenOptionId, 'o-1');
-    expect(copy.tagIds, ['t-1']);
+    expect(copy.evaluation!.id, 'e-1');
+    expect(copy.evaluation!.hindsightNotes, 'Worth it');
+    expect(copy.tags.single.id, 't-1');
+    expect(copy.tags.single.name, 'Career');
   });
 
   test('404 and offline become ApiExceptions the sync understands', () async {
     server
       ..status = 404
-      ..body = {'error': 'decision not found'};
+      ..body = {'error': 'Decision not found'};
     await expectLater(
       api.updateDecision(decision, tagServerIds: const []),
       throwsA(isA<ApiException>()
           .having((e) => e.statusCode, 'statusCode', 404)
-          .having((e) => e.message, 'message', 'decision not found')),
+          .having((e) => e.message, 'message', 'Decision not found')),
     );
 
     server.failure = DioExceptionType.connectionError;
@@ -186,21 +260,21 @@ void main() {
     );
   });
 
-  test('DELETE sends the local updated_at for the last-write-wins check',
-      () async {
+  test('deletes are POSTs, a decision with its local updated_at', () async {
     await api.deleteDecision('d-1', updatedAt: created);
+    expect(server.lastRequest.method, 'POST');
+    expect(server.lastRequest.path, '/decisions/d-1/delete');
+    expect(server.lastRequest.data, {'local_updated_at': '2026-11-04T03:00:00.000Z'});
 
-    expect(server.lastRequest.method, 'DELETE');
-    expect(server.lastRequest.path, '/decisions/d-1');
-    expect(server.lastRequest.queryParameters,
-        {'updated_at': '2026-11-04T03:00:00.000Z'});
+    await api.deleteTag('t-1');
+    expect(server.lastRequest.method, 'POST');
+    expect(server.lastRequest.path, '/tags/t-1/delete');
   });
 
-  test('409 on an evaluation or tag returns the one the server already has',
-      () async {
+  test('an evaluation is sent with the scores and notes', () async {
     server
-      ..status = 409
-      ..body = {'error': 'already evaluated', 'id': 'e-1'};
+      ..status = 201
+      ..body = {'id': 'e-1', 'decision_id': 'd-1'};
     final evaluationId = await api.createEvaluation(
       'd-1',
       Evaluation(
@@ -218,13 +292,66 @@ void main() {
       'created_at': '2026-11-04T03:00:00.000Z',
     });
     expect(evaluationId, 'e-1');
+  });
 
-    server.body = {'error': 'tag exists', 'id': 't-1'};
-    final tagId =
-        await api.createTag(const Tag(userId: 'u1', name: 'Academic', colorHex: '#8771FF'));
-    expect(server.lastRequest.data,
-        {'name': 'Academic', 'color_hex': '#8771FF'});
-    expect(tagId, 't-1');
+  test('a tag without a colour gets the default one', () async {
+    server
+      ..status = 201
+      ..body = {'id': 't-1', 'name': 'Academic', 'color_hex': defaultTagColorHex};
+
+    final id = await api.createTag(const Tag(userId: 'u1', name: 'Academic'));
+
+    expect(server.lastRequest.path, '/tags');
+    expect(server.lastRequest.data, {'name': 'Academic', 'color_hex': '#8771FF'});
+    expect(id, 't-1');
+  });
+
+  test('a refused duplicate tag name reuses the tag the server already has',
+      () async {
+    server.reply = (request) => request.method == 'GET'
+        ? (200, [
+            {'id': 't-other', 'name': 'Career', 'color_hex': '#000000'},
+            {'id': 't-9', 'name': 'academic', 'color_hex': '#8771FF'},
+          ])
+        : (500, {'error': 'Failed to create tag'});
+
+    final id = await api.createTag(
+        const Tag(userId: 'u1', name: 'Academic', colorHex: '#123456'));
+
+    expect([for (final r in server.requests) '${r.method} ${r.path}'],
+        ['POST /tags', 'GET /tags']);
+    expect(id, 't-9');
+
+    // No tag of that name there: the original error stands.
+    server.reply = (request) => request.method == 'GET'
+        ? (200, const <Object>[])
+        : (500, {'error': 'Failed to create tag'});
+    await expectLater(
+      api.createTag(const Tag(userId: 'u1', name: 'Sport')),
+      throwsA(isA<ApiException>().having((e) => e.statusCode, 'statusCode', 500)),
+    );
+  });
+
+  test('a pull asks for changes since the cursor, from the start the first time',
+      () async {
+    server.body = [
+      serverDecision(),
+      serverDecision(id: 'd-2', deletedAt: '2026-11-04T12:00:00+07:00'),
+    ];
+
+    final pulled = await api.pullDecisions(since: created);
+
+    expect(server.lastRequest.method, 'GET');
+    expect(server.lastRequest.path, '/decisions');
+    expect(server.lastRequest.queryParameters,
+        {'updated_since': '2026-11-04T03:00:00.000Z'});
+    expect([for (final d in pulled) d.id], ['d-1', 'd-2']);
+    expect(pulled.last.deletedAt!.toUtc(), DateTime.utc(2026, 11, 4, 5));
+
+    // Without updated_since the server would leave deleted decisions out.
+    await api.pullDecisions();
+    expect(server.lastRequest.queryParameters,
+        {'updated_since': '1970-01-01T00:00:00.000Z'});
   });
 
   test('an insight reply is read, with snake_case enums and "none"', () async {
@@ -232,6 +359,7 @@ void main() {
       ..status = 201
       ..body = {
         'id': 'i-1',
+        'decision_id': 'd-1',
         'model_version': 'gemini-2.5-flash',
         'trigger_context': 'post_evaluation',
         'insight_text': 'You felt very sure.',
@@ -241,7 +369,7 @@ void main() {
         'actionability_score': 7,
         'suggested_alternative': 'Write down what could change your mind.',
         'model_confidence': 0.82,
-        'generated_at': '2026-11-04T05:00:00Z',
+        'generated_at': '2026-11-04T12:00:00+07:00',
       };
 
     final insight = await api.requestInsight('d-1', TriggerContext.postEvaluation);
@@ -260,7 +388,27 @@ void main() {
     expect(enumToApi(TriggerContext.preDecision), 'pre_decision');
   });
 
-  test('a reply the app can\'t read is a clear error, not a crash', () async {
+  test('insight errors from the server read as plain explanations', () async {
+    for (final (status, error, expected) in [
+      (503, 'AI insights are not configured on this server', 'switched on'),
+      (429, 'daily AI insight limit reached', "today's limit"),
+      (502, 'the AI model could not generate an insight', 'try again'),
+      (400, 'a post_evaluation insight needs an evaluation first', 'evaluation'),
+    ]) {
+      server
+        ..status = status
+        ..body = {'error': error};
+      await expectLater(
+        api.requestInsight('d-1', TriggerContext.postEvaluation),
+        throwsA(isA<ApiException>()
+            .having((e) => e.statusCode, 'statusCode', status)
+            .having((e) => e.message, 'message', contains(expected))),
+        reason: '$status',
+      );
+    }
+  });
+
+  test("a reply the app can't read is a clear error, not a crash", () async {
     server.body = {'unexpected': true};
 
     await expectLater(

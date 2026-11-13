@@ -1,8 +1,10 @@
 // flutter_test has its own Evaluation (an accessibility check result).
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart' hide Evaluation;
 import 'package:hinsight/src/core/database/sync_status.dart';
 import 'package:hinsight/src/core/network/api_exception.dart';
 import 'package:hinsight/src/features/decisions/data/local/memory_decision_local_data_source.dart';
+import 'package:hinsight/src/features/decisions/data/local/pull_cursor_store.dart';
 import 'package:hinsight/src/features/decisions/data/remote/decision_remote_data_source.dart';
 import 'package:hinsight/src/features/decisions/data/remote/fake_decision_remote_data_source.dart';
 import 'package:hinsight/src/features/decisions/data/repositories/decision_repository_impl.dart';
@@ -10,6 +12,8 @@ import 'package:hinsight/src/features/decisions/data/repositories/sync_repositor
 import 'package:hinsight/src/features/decisions/domain/entities/decision.dart';
 import 'package:hinsight/src/features/decisions/domain/entities/decision_enums.dart';
 import 'package:hinsight/src/features/tags/domain/entities/tag.dart';
+
+import '../../helpers/fake_decisions.dart';
 
 /// The fake server, plus hooks to act while a request is "in flight" or to
 /// refuse one.
@@ -21,6 +25,8 @@ class _HookedServer extends FakeDecisionRemoteDataSource {
   ApiException? Function(Decision sent)? refuse;
   Future<void> Function(Tag sent)? whileSendingTag;
   ApiException? tagError;
+  ApiException? pullError;
+  final pulledSince = <DateTime?>[];
 
   Future<void> _before(Decision d) async {
     final error = refuse?.call(d);
@@ -52,6 +58,13 @@ class _HookedServer extends FakeDecisionRemoteDataSource {
     await whileSendingTag?.call(tag);
     return super.createTag(tag);
   }
+
+  @override
+  Future<List<RemoteDecision>> pullDecisions({DateTime? since}) {
+    pulledSince.add(since);
+    if (pullError != null) throw pullError!;
+    return super.pullDecisions(since: since);
+  }
 }
 
 void main() {
@@ -66,7 +79,11 @@ void main() {
     now = DateTime(2026, 11, 4, 10);
     server = _HookedServer(() => now);
     sync = SyncRepositoryImpl(
-        local: local, remote: server, userId: 'u1', clock: () => now);
+        local: local,
+        remote: server,
+        userId: 'u1',
+        cursors: MemoryPullCursors(),
+        clock: () => now);
     repo = DecisionRepositoryImpl(
         local: local, remote: server, sync: sync, userId: 'u1', clock: () => now);
   });
@@ -97,7 +114,8 @@ void main() {
       final tag = await repo.createTag('Academic');
       final d = await repo.createDecision(draft.copyWith(tagLocalIds: [tag.localId!]));
       await repo.commitDecision(d.localId!, chosenOptionKey: d.options.last.key);
-      await repo.evaluateDecision(d.localId!, satisfactionAfter: 70);
+      await repo.evaluateDecision(d.localId!,
+          satisfactionAfter: 70, confidenceAfter: 60, hindsightNotes: 'Fine');
 
       final report = await sync.syncPendingChanges();
 
@@ -116,7 +134,7 @@ void main() {
       expect(evaluation.decisionServerId, after.serverId);
 
       final onServer = server.serverCopy(after.serverId!)!;
-      expect(onServer.tagIds, [tagAfter.serverId]);
+      expect([for (final t in onServer.tags) t.id], [tagAfter.serverId]);
       expect(onServer.outcome!.chosenOptionId, after.options.last.serverId);
       expect(server.serverEvaluation(after.serverId!)!.serverId,
           evaluation.serverId);
@@ -137,7 +155,8 @@ void main() {
         () async {
       final slow = FakeDecisionRemoteDataSource(
           latency: const Duration(milliseconds: 20));
-      final slowSync = SyncRepositoryImpl(local: local, remote: slow, userId: 'u1');
+      final slowSync = SyncRepositoryImpl(
+          local: local, remote: slow, userId: 'u1', cursors: MemoryPullCursors());
       await repo.createDecision(draft);
 
       await Future.wait(
@@ -147,7 +166,7 @@ void main() {
     });
   });
 
-  group('sending edits (pendingUpdate → PUT, last write wins)', () {
+  group('sending edits (pendingUpdate → POST /sync, last write wins)', () {
     test('an edit reaches the server with its updated_at', () async {
       final d = await synced();
       later();
@@ -257,7 +276,8 @@ void main() {
       final tag = await repo.createTag('Academic');
       final d = await repo.createDecision(draft.copyWith(tagLocalIds: [tag.localId!]));
       await repo.commitDecision(d.localId!, chosenOptionKey: d.options.first.key);
-      await repo.evaluateDecision(d.localId!, satisfactionAfter: 70);
+      await repo.evaluateDecision(d.localId!,
+          satisfactionAfter: 70, confidenceAfter: 60, hindsightNotes: 'Fine');
       await sync.syncPendingChanges();
       server.reset();
       later();
@@ -275,12 +295,13 @@ void main() {
     });
   });
 
-  group('sending deletions (pendingDelete → DELETE)', () {
+  group('sending deletions (pendingDelete → POST /delete)', () {
     test('the server is told first, then the decision leaves the phone',
         () async {
       final d = await synced();
       await repo.commitDecision(d.localId!, chosenOptionKey: d.options.first.key);
-      await repo.evaluateDecision(d.localId!, satisfactionAfter: 70);
+      await repo.evaluateDecision(d.localId!,
+          satisfactionAfter: 70, confidenceAfter: 60, hindsightNotes: 'Fine');
       await sync.syncPendingChanges();
       later();
       await repo.deleteDecision(d.localId!);
@@ -454,6 +475,184 @@ void main() {
       expect(await local.getTag(tag.localId!), isNull);
       expect(server.tagCount, 0); // The server's copy was deleted right away
     });
+  });
+
+  group('pulling changes made on another device', () {
+    late MemoryDecisionLocalDataSource laptop;
+    late SyncRepositoryImpl laptopSync;
+    late DecisionRepositoryImpl laptopRepo;
+
+    setUp(() {
+      laptop = MemoryDecisionLocalDataSource();
+      laptopSync = SyncRepositoryImpl(
+          local: laptop,
+          remote: server,
+          userId: 'u1',
+          cursors: MemoryPullCursors(),
+          clock: () => now);
+      laptopRepo = DecisionRepositoryImpl(
+          local: laptop,
+          remote: server,
+          sync: laptopSync,
+          userId: 'u1',
+          clock: () => now);
+    });
+
+    Future<Decision> onPhone(String serverId) async =>
+        (await repo.watchDecisions().first)
+            .singleWhere((d) => d.serverId == serverId);
+
+    test('a decision arrives with its options, outcome, evaluation and tags',
+        () async {
+      final tag = await laptopRepo.createTag('Academic');
+      final d = await laptopRepo
+          .createDecision(draft.copyWith(tagLocalIds: [tag.localId!]));
+      await laptopRepo.commitDecision(d.localId!,
+          chosenOptionKey: d.options.last.key, commitmentNote: 'Fun');
+      await laptopRepo.evaluateDecision(d.localId!,
+          satisfactionAfter: 80, confidenceAfter: 70, hindsightNotes: 'Worth it');
+      await laptopSync.syncPendingChanges();
+      final serverId = (await laptop.getDecision(d.localId!))!.serverId!;
+
+      final report = await sync.syncPendingChanges();
+
+      final arrived = await onPhone(serverId);
+      expect(report.failures, isEmpty);
+      expect(report.remaining, 0); // Nothing to send back
+      expect(arrived.title, 'Pick an elective');
+      expect(arrived.syncStatus, SyncStatus.synced);
+      expect(arrived.status, DecisionStatus.evaluated);
+      expect([for (final o in arrived.options) o.title], ['Data Mining', 'Game Design']);
+      expect(arrived.options.first.pros, ['Thesis topic']);
+      expect(arrived.chosenOption!.title, 'Game Design');
+      expect(arrived.outcome!.commitmentNote, 'Fun');
+      final evaluation = (await local.getEvaluation(arrived.localId!))!;
+      expect(evaluation.hindsightNotes, 'Worth it');
+      expect(evaluation.syncStatus, SyncStatus.synced);
+      final phoneTags = await repo.watchTags().first;
+      expect([for (final t in phoneTags) t.name], ['Academic']);
+      expect(arrived.tagLocalIds, [phoneTags.single.localId]);
+      expect(phoneTags.single.syncStatus, SyncStatus.synced);
+    });
+
+    test('an edit replaces the synced copy, and a deletion removes it',
+        () async {
+      final d = await laptopRepo.createDecision(draft);
+      await laptopSync.syncPendingChanges();
+      final serverId = (await laptop.getDecision(d.localId!))!.serverId!;
+      await sync.syncPendingChanges();
+
+      later();
+      await laptopRepo.updateDecision(
+          d.localId!, draft.copyWith(title: 'Pick one elective'));
+      await laptopSync.syncPendingChanges();
+      await sync.syncPendingChanges();
+      expect((await onPhone(serverId)).title, 'Pick one elective');
+
+      later();
+      await laptopRepo.deleteDecision(d.localId!);
+      await laptopSync.syncPendingChanges();
+      await sync.syncPendingChanges();
+      expect(await repo.watchDecisions().first, isEmpty);
+    });
+
+    test("a change still waiting on the phone wins only when it's newer",
+        () async {
+      final d = await synced();
+      ApiException refuse(Decision _) =>
+          const ApiException('Something went wrong.', statusCode: 500);
+
+      // The phone's edit can't be sent and the laptop's is older: kept.
+      later(10);
+      await repo.updateDecision(d.localId!, draft.copyWith(title: 'From the phone'));
+      await laptopSync.syncPendingChanges();
+      final onLaptop = (await laptop.watchDecisions('u1').first).single;
+      await laptopRepo.updateDecision(onLaptop.localId!,
+          draft.copyWith(title: 'From the laptop'));
+      // The laptop's clock is 5 minutes behind the phone's edit.
+      await laptop.putDecision((await laptop.getDecision(onLaptop.localId!))!
+          .copyWith(updatedAt: now.subtract(const Duration(minutes: 5))));
+      await laptopSync.syncPendingChanges();
+      server.refuse = refuse;
+      await sync.syncPendingChanges();
+      expect((await stored(d)).title, 'From the phone');
+      expect((await stored(d)).syncStatus, SyncStatus.pendingUpdate);
+
+      // Now the laptop's edit is newer: the server's copy wins.
+      later(10);
+      server.refuse = null;
+      await laptopRepo.updateDecision(onLaptop.localId!,
+          draft.copyWith(title: 'Newer on the laptop'));
+      await laptopSync.syncPendingChanges();
+      server.refuse = refuse;
+      await sync.syncPendingChanges();
+      expect((await stored(d)).title, 'Newer on the laptop');
+      expect((await stored(d)).syncStatus, SyncStatus.synced);
+    });
+
+    test('a tag waiting on the phone is matched to the server\'s by name',
+        () async {
+      final waiting = await repo.createTag('academic');
+      server.tagError = const ApiException('Something went wrong.', statusCode: 500);
+      await sync.syncPendingChanges();
+      server.tagError = null;
+      final tag = await laptopRepo.createTag('Academic');
+      await laptopRepo.createDecision(draft.copyWith(tagLocalIds: [tag.localId!]));
+      await laptopSync.syncPendingChanges();
+      final laptopTag = (await laptop.getTag(tag.localId!))!;
+
+      server.tagError = const ApiException('Something went wrong.', statusCode: 500);
+      await sync.syncPendingChanges();
+
+      final phoneTags = await repo.watchTags().first;
+      expect(phoneTags, hasLength(1));
+      expect(phoneTags.single.localId, waiting.localId);
+      expect(phoneTags.single.serverId, laptopTag.serverId);
+      expect(phoneTags.single.syncStatus, SyncStatus.synced);
+    });
+
+    test('each pull starts at the newest server change the last one saw',
+        () async {
+      await laptopRepo.createDecision(draft);
+      await laptopSync.syncPendingChanges();
+      await sync.syncPendingChanges();
+      expect(server.pulledSince.last, isNull); // The phone's first pull
+      final newest = (await server.pullDecisions()).single.serverUpdatedAt;
+
+      later();
+      await sync.syncPendingChanges();
+
+      expect(server.pulledSince.last, newest);
+    });
+
+    test('a failed pull is reported and the evaluations are still sent',
+        () async {
+      final d = await synced();
+      await repo.commitDecision(d.localId!, chosenOptionKey: d.options.first.key);
+      await repo.evaluateDecision(d.localId!,
+          satisfactionAfter: 70, confidenceAfter: 60, hindsightNotes: 'Fine');
+      server.pullError =
+          const ApiException('Something went wrong.', statusCode: 500);
+
+      final report = await sync.syncPendingChanges();
+
+      expect(report.failures,
+          ['Getting changes from the server: Something went wrong.']);
+      expect(report.remaining, 0);
+      expect((await local.getEvaluation(d.localId!))!.syncStatus,
+          SyncStatus.synced);
+    });
+  });
+
+  test('the pull cursor is kept per user in secure storage', () async {
+    FlutterSecureStorage.setMockInitialValues({});
+    const cursors = PullCursorStore(FlutterSecureStorage());
+    final at = DateTime.utc(2026, 11, 4, 4, 0, 0, 123, 456);
+
+    await cursors.write('u1', at);
+
+    expect(await cursors.read('u1'), at);
+    expect(await cursors.read('u2'), isNull);
   });
 
   test('counts the changes still waiting', () async {

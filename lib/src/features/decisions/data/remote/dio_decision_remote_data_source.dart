@@ -8,10 +8,8 @@ import '../../domain/entities/evaluation.dart';
 import 'api_json.dart';
 import 'decision_remote_data_source.dart';
 
-/// Calls the backend's decision endpoints through the shared Dio (which adds
-/// the login token and watches the connection). The backend doesn't have
-/// these endpoints yet; docs/SYNC_API.md lists exactly what this sends and
-/// expects, so the backend team can build them to match. Set
+/// Calls the backend's decision and tag endpoints through the shared Dio
+/// (which adds the login token and watches the connection). Set
 /// DECISION_API=live in .env to use it.
 class DioDecisionRemoteDataSource implements DecisionRemoteDataSource {
   DioDecisionRemoteDataSource(this.dio);
@@ -28,14 +26,27 @@ class DioDecisionRemoteDataSource implements DecisionRemoteDataSource {
   }) async {
     final body = await _send(() => dio.post<Object?>(
           '/decisions',
-          data: decisionToJson(decision, tagServerIds),
+          data: createDecisionToJson(decision, tagServerIds),
           // A retry after a lost reply must not create the decision twice.
           options: Options(headers: {
             'Idempotency-Key': 'decision-${decision.localId}-'
                 '${decision.createdAt.microsecondsSinceEpoch}',
           }),
         ));
-    return _parse(() => idsFromJson(_map(body), decision));
+    final ids = _parse(() => idsFromJson(_map(body), decision));
+    if (decision.outcome == null) return ids;
+    // POST /decisions ignores the outcome, so a decision committed before
+    // its first sync is sent again whole.
+    return updateDecision(
+      decision.copyWith(
+        serverId: ids.id,
+        options: [
+          for (final o in decision.options)
+            o.copyWith(serverId: ids.optionIds[o.key] ?? o.serverId),
+        ],
+      ),
+      tagServerIds: tagServerIds,
+    );
   }
 
   @override
@@ -43,18 +54,18 @@ class DioDecisionRemoteDataSource implements DecisionRemoteDataSource {
     Decision decision, {
     required List<String> tagServerIds,
   }) async {
-    final body = await _send(() => dio.put<Object?>(
-          '/decisions/${decision.serverId}',
-          data: decisionToJson(decision, tagServerIds),
+    final body = await _send(() => dio.post<Object?>(
+          '/decisions/${decision.serverId}/sync',
+          data: syncDecisionToJson(decision, tagServerIds),
         ));
     return _parse(() => idsFromJson(_map(body), decision));
   }
 
   @override
   Future<void> deleteDecision(String serverId, {required DateTime updatedAt}) =>
-      _send(() => dio.delete<Object?>(
-            '/decisions/$serverId',
-            queryParameters: {'updated_at': timestampToApi(updatedAt)},
+      _send(() => dio.post<Object?>(
+            '/decisions/$serverId/delete',
+            data: {'local_updated_at': timestampToApi(updatedAt)},
           ));
 
   @override
@@ -62,19 +73,17 @@ class DioDecisionRemoteDataSource implements DecisionRemoteDataSource {
     String decisionServerId,
     Evaluation evaluation,
   ) async {
-    final body = await _send(
-      () => dio.post<Object?>(
-        '/decisions/$decisionServerId/evaluations',
-        data: {
-          'satisfaction_after': evaluation.satisfactionAfter,
-          'confidence_after': evaluation.confidenceAfter,
-          'hindsight_notes': evaluation.hindsightNotes,
-          'created_at': timestampToApi(evaluation.createdAt),
-        },
-      ),
-      // The decision already has one (a retried request): that's the one.
-      existingOn409: true,
-    );
+    // The server keeps one evaluation per decision and answers a retry with
+    // the same one.
+    final body = await _send(() => dio.post<Object?>(
+          '/decisions/$decisionServerId/evaluations',
+          data: {
+            'satisfaction_after': evaluation.satisfactionAfter,
+            'confidence_after': evaluation.confidenceAfter,
+            'hindsight_notes': evaluation.hindsightNotes,
+            'created_at': timestampToApi(evaluation.createdAt),
+          },
+        ));
     return _parse(() => _map(body)['id'] as String);
   }
 
@@ -83,50 +92,92 @@ class DioDecisionRemoteDataSource implements DecisionRemoteDataSource {
     String decisionServerId,
     TriggerContext trigger,
   ) async {
-    final body = await _send(() => dio.post<Object?>(
-          '/decisions/$decisionServerId/insights',
-          data: {'trigger_context': enumToApi(trigger)},
-        ));
-    return _parse(() => insightFromJson(_map(body)));
+    try {
+      final body = await _send(() => dio.post<Object?>(
+            '/decisions/$decisionServerId/insights',
+            data: {'trigger_context': enumToApi(trigger)},
+          ));
+      return _parse(() => insightFromJson(_map(body)));
+    } on ApiException catch (e) {
+      final message = _insightErrors[e.statusCode];
+      if (message == null) rethrow;
+      throw ApiException(message, statusCode: e.statusCode);
+    }
   }
+
+  static const _insightErrors = {
+    400: 'The AI needs your evaluation of this decision first. Please try '
+        'again once it has synced.',
+    429: "You've reached today's limit of AI checks. Please try again "
+        'tomorrow.',
+    502: "The AI couldn't analyse this decision just now. Please try again "
+        'in a moment.',
+    503: "AI insights aren't switched on for this server yet.",
+  };
 
   @override
   Future<String> createTag(Tag tag) async {
-    final body = await _send(
-      () => dio.post<Object?>(
-        '/tags',
-        data: {'name': tag.name, 'color_hex': tag.colorHex},
-      ),
-      // The user already has a tag with this name on the server.
-      existingOn409: true,
-    );
-    return _parse(() => _map(body)['id'] as String);
+    try {
+      final body = await _send(() => dio.post<Object?>(
+            '/tags',
+            data: {
+              'name': tag.name,
+              'color_hex': tag.colorHex ?? defaultTagColorHex,
+            },
+          ));
+      return _parse(() => _map(body)['id'] as String);
+    } on ApiException catch (e) {
+      // A name the user already has can come back as an error (500) instead
+      // of the existing tag: look that tag up.
+      if (e.statusCode != 500 && e.statusCode != 409) rethrow;
+      return await _existingTagId(tag.name) ?? (throw e);
+    }
+  }
+
+  /// GET /tags: the id of the user's tag with this name, ignoring case
+  /// unless the name is there exactly.
+  Future<String?> _existingTagId(String name) async {
+    final body = await _send(() => dio.get<Object?>('/tags'));
+    return _parse(() {
+      final tags = [for (final raw in body as List) _map(raw)];
+      final exact = tags.where((t) => t['name'] == name);
+      final sameName = exact.isNotEmpty
+          ? exact
+          : tags.where(
+              (t) => (t['name'] as String).toLowerCase() == name.toLowerCase());
+      return sameName.firstOrNull?['id'] as String?;
+    });
   }
 
   @override
   Future<void> deleteTag(String serverId) =>
-      _send(() => dio.delete<Object?>('/tags/$serverId'));
+      _send(() => dio.post<Object?>('/tags/$serverId/delete'));
+
+  @override
+  Future<List<RemoteDecision>> pullDecisions({DateTime? since}) async {
+    final body = await _send(() => dio.get<Object?>(
+          '/decisions',
+          queryParameters: {
+            // Without updated_since the server leaves deleted decisions out.
+            'updated_since': timestampToApi(since ?? DateTime.utc(1970)),
+          },
+        ));
+    return _parse(
+        () => [for (final raw in body as List) decisionFromJson(_map(raw))]);
+  }
 
   // --- Requests and errors ---
 
-  /// Runs [request] and returns the response body. A 409 for a decision
-  /// carries the server's newer copy and becomes a DecisionConflictException;
-  /// with [existingOn409] its body is returned instead, as the record the
-  /// server already had.
-  Future<Object?> _send(
-    Future<Response<Object?>> Function() request, {
-    bool existingOn409 = false,
-  }) async {
+  /// Runs [request] and returns the response body. A 409 that carries the
+  /// server's newer copy of a decision becomes a DecisionConflictException.
+  Future<Object?> _send(Future<Response<Object?>> Function() request) async {
     try {
       return (await request()).data;
     } on DioException catch (e) {
-      final response = e.response;
-      if (response?.statusCode == 409) {
-        if (existingOn409) return response!.data;
-        final copy = response!.data is Map
-            ? _parse(() => conflictFromJson(_map(response.data)))
-            : null;
-        if (copy != null) throw DecisionConflictException(copy);
+      final body = e.response?.data;
+      if (e.response?.statusCode == 409 && body is Map && body['decision'] is Map) {
+        throw DecisionConflictException(
+            _parse(() => decisionFromJson(_map(body['decision']))));
       }
       throw ApiException.fromDioException(e);
     }
@@ -146,18 +197,38 @@ class DioDecisionRemoteDataSource implements DecisionRemoteDataSource {
       (json as Map).cast<String, Object?>();
 }
 
-// --- JSON, in the shape docs/SYNC_API.md describes ---
+// --- JSON, in the shape the backend's request and response DTOs use ---
 
-Map<String, Object?> decisionToJson(Decision d, List<String> tagServerIds) => {
+Map<String, Object?> _decisionFields(Decision d, List<String> tagServerIds) => {
       'title': d.title,
       'context': d.context,
       'confidence_before': d.confidenceBefore,
       'scheduled_review_date':
           d.scheduledReviewDate == null ? null : dateToApi(d.scheduledReviewDate!),
       'created_at': timestampToApi(d.createdAt),
-      // The server keeps whichever copy has the later updated_at (III-F).
-      'updated_at': timestampToApi(d.updatedAt),
       'tag_ids': tagServerIds,
+    };
+
+/// POST /decisions. The server sets updated_at to created_at and doesn't
+/// read the outcome.
+Map<String, Object?> createDecisionToJson(Decision d, List<String> tagServerIds) => {
+      ..._decisionFields(d, tagServerIds),
+      'options': [
+        for (final o in d.options)
+          {
+            'title': o.title,
+            'pros': linesToApi(o.pros),
+            'cons': linesToApi(o.cons),
+          },
+      ],
+    };
+
+/// POST /decisions/{id}/sync: the whole decision. Options the request leaves
+/// out are deleted on the server.
+Map<String, Object?> syncDecisionToJson(Decision d, List<String> tagServerIds) => {
+      ..._decisionFields(d, tagServerIds),
+      // The server keeps whichever copy has the later updated_at (III-F).
+      'local_updated_at': timestampToApi(d.updatedAt),
       'options': [
         for (final o in d.options)
           {
@@ -166,7 +237,6 @@ Map<String, Object?> decisionToJson(Decision d, List<String> tagServerIds) => {
             'title': o.title,
             'pros': linesToApi(o.pros),
             'cons': linesToApi(o.cons),
-            'created_at': timestampToApi(o.createdAt),
           },
       ],
       'outcome': d.outcome == null
@@ -180,56 +250,50 @@ Map<String, Object?> decisionToJson(Decision d, List<String> tagServerIds) => {
             },
     };
 
-/// The ids in a create or update reply. Options are matched by the
-/// client_key the app sent, or by title (unique per decision) if the server
-/// leaves client_key out.
+/// The ids in a create or sync reply. The server doesn't echo client keys,
+/// so options are matched by title (unique per decision, ignoring case).
 RemoteDecisionIds idsFromJson(Map<String, Object?> json, Decision sent) {
   final optionIds = <String, String>{};
   for (final raw in (json['options'] as List?) ?? const []) {
     final option = (raw as Map).cast<String, Object?>();
-    final id = option['id'] as String;
-    final key = option['client_key'] as String? ??
-        sent.options
-            .where((o) =>
-                o.title.toLowerCase() ==
-                (option['title'] as String?)?.toLowerCase())
-            .firstOrNull
-            ?.key;
-    if (key != null) optionIds[key] = id;
+    final title = (option['title'] as String).toLowerCase();
+    final key =
+        sent.options.where((o) => o.title.toLowerCase() == title).firstOrNull?.key;
+    if (key != null) optionIds[key] = option['id'] as String;
   }
   return RemoteDecisionIds(id: json['id'] as String, optionIds: optionIds);
 }
 
-/// The server's copy in a 409 reply: `{"error": ..., "decision": {...}}`, or
-/// the decision itself.
-RemoteDecision conflictFromJson(Map<String, Object?> json) {
-  final record = json['decision'] is Map
-      ? (json['decision'] as Map).cast<String, Object?>()
-      : json;
-  final outcome = record['outcome'] is Map
-      ? (record['outcome'] as Map).cast<String, Object?>()
-      : null;
+/// A DecisionResponse: in a pull, or as the server's copy in a 409 reply.
+RemoteDecision decisionFromJson(Map<String, Object?> json) {
+  Map<String, Object?>? object(String key) =>
+      json[key] is Map ? (json[key] as Map).cast<String, Object?>() : null;
+  List<Map<String, Object?>> objects(String key) => [
+        for (final raw in (json[key] as List?) ?? const [])
+          (raw as Map).cast<String, Object?>(),
+      ];
+
+  final outcome = object('outcome');
+  final evaluation = object('evaluation');
   return RemoteDecision(
-    id: record['id'] as String,
-    title: record['title'] as String,
-    context: record['context'] as String?,
-    confidenceBefore: (record['confidence_before'] as num?)?.toInt(),
-    scheduledReviewDate: dateFromApi(record['scheduled_review_date']),
-    createdAt: timestampFromApi(record['created_at']),
-    updatedAt: timestampFromApi(record['updated_at']),
-    deletedAt: optionalTimestampFromApi(record['deleted_at']),
+    id: json['id'] as String,
+    title: json['title'] as String,
+    context: json['context'] as String?,
+    confidenceBefore: (json['confidence_before'] as num?)?.toInt(),
+    scheduledReviewDate: dateFromApi(json['scheduled_review_date']),
+    createdAt: timestampFromApi(json['created_at']),
+    updatedAt: timestampFromApi(json['updated_at']),
+    serverUpdatedAt: timestampFromApi(json['server_updated_at']),
+    deletedAt: optionalTimestampFromApi(json['deleted_at']),
     options: [
-      for (final raw in (record['options'] as List?) ?? const [])
-        () {
-          final o = (raw as Map).cast<String, Object?>();
-          return RemoteOption(
-            id: o['id'] as String,
-            title: o['title'] as String,
-            pros: linesFromApi(o['pros']),
-            cons: linesFromApi(o['cons']),
-            createdAt: timestampFromApi(o['created_at']),
-          );
-        }(),
+      for (final o in objects('options'))
+        RemoteOption(
+          id: o['id'] as String,
+          title: o['title'] as String,
+          pros: linesFromApi(o['pros']),
+          cons: linesFromApi(o['cons']),
+          createdAt: timestampFromApi(o['created_at']),
+        ),
     ],
     outcome: outcome == null
         ? null
@@ -238,8 +302,22 @@ RemoteDecision conflictFromJson(Map<String, Object?> json) {
             commitmentNote: outcome['commitment_note'] as String?,
             decidedAt: timestampFromApi(outcome['decided_at']),
           ),
-    tagIds: [
-      for (final id in (record['tag_ids'] as List?) ?? const []) id as String,
+    evaluation: evaluation == null
+        ? null
+        : RemoteEvaluation(
+            id: evaluation['id'] as String,
+            satisfactionAfter: (evaluation['satisfaction_after'] as num?)?.toInt(),
+            confidenceAfter: (evaluation['confidence_after'] as num?)?.toInt(),
+            hindsightNotes: evaluation['hindsight_notes'] as String?,
+            createdAt: timestampFromApi(evaluation['created_at']),
+          ),
+    tags: [
+      for (final t in objects('tags'))
+        RemoteTag(
+          id: t['id'] as String,
+          name: t['name'] as String,
+          colorHex: t['color_hex'] as String?,
+        ),
     ],
   );
 }
