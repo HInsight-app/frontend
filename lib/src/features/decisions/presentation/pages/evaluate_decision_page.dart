@@ -31,6 +31,16 @@ class _EvaluateDecisionPageState extends ConsumerState<EvaluateDecisionPage> {
   bool _notesMissing = false;
 
   @override
+  void initState() {
+    super.initState();
+    _notes.addListener(() {
+      if (_notesMissing && _notes.text.trim().isNotEmpty) {
+        setState(() => _notesMissing = false);
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _notes.dispose();
     super.dispose();

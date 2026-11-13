@@ -127,6 +127,9 @@ void main() {
     expect(find.text('Save evaluation'), findsOneWidget); // Still on the form
     await tester.enterText(
         find.byType(TextField).last, 'The workload was fine after all');
+    await tester.pump();
+    expect(find.textContaining("know now that you didn't when you decided"),
+        findsNothing);
     await _tapText(tester, 'Save evaluation');
     expect(find.text('Evaluated'), findsOneWidget);
     expect(find.textContaining('Satisfaction: 50%'), findsOneWidget);

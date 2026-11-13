@@ -59,6 +59,7 @@ class _AppTextFieldState extends State<AppTextField> {
           decoration: InputDecoration(
             hintText: widget.hint,
             errorText: widget.errorText,
+            errorMaxLines: 3,
             prefixIcon:
                 widget.prefixIcon != null ? Icon(widget.prefixIcon) : null,
 
