@@ -20,6 +20,7 @@ abstract class AuthRepository {
   /// The remembered user from a previous app run, or null.
   Future<AuthUser?> restoreSession();
 
-  /// Forgets the session on this device.
+  /// Ends the session on the server when it can be reached, and always
+  /// forgets it on this device.
   Future<void> logout();
 }

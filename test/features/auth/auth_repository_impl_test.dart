@@ -5,6 +5,8 @@ import 'package:hinsight/core.dart';
 import 'package:hinsight/src/features/auth/auth.dart';
 import 'package:hinsight/src/features/auth/data/models/auth_response.dart';
 
+import '../../helpers/fake_http_adapter.dart';
+
 /// Stands in for the backend: returns [response], or throws [error].
 class _FakeRemote implements AuthRemoteDataSource {
   AuthResponse response = const AuthResponse(
@@ -13,6 +15,8 @@ class _FakeRemote implements AuthRemoteDataSource {
   );
   DioException? error;
   bool? lastRemember;
+  DioException? logoutError;
+  String? tokenAtLogout;
 
   @override
   Future<AuthResponse> login(String email, String password, bool remember) async {
@@ -27,6 +31,13 @@ class _FakeRemote implements AuthRemoteDataSource {
     lastRemember = remember;
     if (error != null) throw error!;
     return response;
+  }
+
+  @override
+  Future<void> logout() async {
+    tokenAtLogout =
+        await const FlutterSecureStorage().read(key: TokenStorage.tokenKey);
+    if (logoutError != null) throw logoutError!;
   }
 }
 
@@ -127,14 +138,40 @@ void main() {
     );
   });
 
-  test('logout forgets the session', () async {
+  test('logout ends the session on the server, then forgets it here',
+      () async {
     final repository = repositoryAfterStart();
     await repository.login(email: 'a@b.com', password: 'Secret123', remember: true);
 
     await repository.logout();
 
+    expect(remote.tokenAtLogout, 'token-1'); // Sent before it was deleted
     expect(await repository.restoreSession(), isNull);
     expect(await repositoryAfterStart().restoreSession(), isNull);
+  });
+
+  test('logout offline still forgets the session here', () async {
+    final repository = repositoryAfterStart();
+    await repository.login(email: 'a@b.com', password: 'Secret123', remember: true);
+    remote.logoutError = DioException(
+      requestOptions: RequestOptions(path: '/auth/logout'),
+      type: DioExceptionType.connectionError,
+    );
+
+    await repository.logout();
+
+    expect(await repositoryAfterStart().restoreSession(), isNull);
+  });
+
+  test('the server logout is a POST to /auth/logout', () async {
+    final server = FakeHttpAdapter();
+    final dio = Dio(BaseOptions(baseUrl: 'https://api.test'))
+      ..httpClientAdapter = server;
+
+    await AuthRemoteDataSourceImpl(dio: dio).logout();
+
+    expect(server.lastRequest.method, 'POST');
+    expect(server.lastRequest.path, '/auth/logout');
   });
 
   test('unreadable saved user data counts as signed out', () async {

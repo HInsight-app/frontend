@@ -56,9 +56,13 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<void> logout() async {
-    // Local only for now. The paper (III-D) also revokes the session on the
-    // server, but the backend has no logout endpoint yet; call it here once
-    // it exists.
+    try {
+      // Revokes the session on the server too (paper III-D), while the token
+      // is still saved. Best effort, and never a long wait when offline.
+      await remoteDataSource.logout().timeout(const Duration(seconds: 5));
+    } on Exception catch (_) {
+      // The server's session still expires on its own.
+    }
     await localDataSource.clearSession();
   }
 }

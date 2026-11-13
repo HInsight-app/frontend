@@ -5,6 +5,9 @@ abstract class AuthRemoteDataSource {
   Future<AuthResponse> login(String email, String password, bool remember);
   Future<AuthResponse> register(
       String displayName, String email, String password, bool remember);
+
+  /// Ends the session on the server. AuthInterceptor sends its token.
+  Future<void> logout();
 }
 
 class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
@@ -42,4 +45,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
     return AuthResponse.fromJson(response.data);
   }
+
+  @override
+  Future<void> logout() => dio.post<void>('/auth/logout');
 }
